@@ -107,7 +107,3 @@ deno task fmt
 # Lint
 deno task lint
 ```
-
-## License
-
-MIT
