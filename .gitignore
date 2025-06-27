@@ -1,3 +1,5 @@
 notes
 .env
 .env.*
+.herodotus.toml
+deno.lock
