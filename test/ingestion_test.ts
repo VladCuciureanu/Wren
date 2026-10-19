@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { IngestionLoop } from "../src/ingestion.ts";
+import { IngestionLoop, buildProviders, providerKey } from "../src/ingestion.ts";
 import type { PipelineState, Provider } from "../src/providers/mod.ts";
 import type { RepoConfig } from "../src/config.ts";
 
@@ -73,4 +73,38 @@ test("IngestionLoop: start/stop calls callback", async () => {
   if (callCount < 2) {
     throw new Error(`Expected at least 2 callbacks, got ${callCount}`);
   }
+});
+
+test("buildProviders: repos with different tokens get different providers", async () => {
+  const repos: RepoConfig[] = [
+    { owner: "a", name: "one", provider: "github", token: "token-a" },
+    { owner: "b", name: "two", provider: "github", token: "token-b" },
+    { owner: "c", name: "three", provider: "github", token: "token-a" },
+  ];
+  const created: string[] = [];
+  const providers = buildProviders(repos, "env-token", (_name, token) => {
+    created.push(token);
+    return { poll: () => Promise.resolve(token === "token-a" ? "passing" : "failing") };
+  });
+  assert.deepEqual(created, ["token-a", "token-b"]);
+  assert.notEqual(providers.get(providerKey(repos[0])), providers.get(providerKey(repos[1])));
+  assert.equal(providers.get(providerKey(repos[0])), providers.get(providerKey(repos[2])));
+
+  const loop = new IngestionLoop(repos, providers, 1000, () => {});
+  const statuses = await loop.pollOnce();
+  assert.deepEqual(statuses.map((s) => s.state), ["passing", "failing", "passing"]);
+});
+
+test("buildProviders: repos without a token share the default-token provider", () => {
+  const repos: RepoConfig[] = [
+    { owner: "a", name: "one", provider: "github" },
+    { owner: "b", name: "two", provider: "github" },
+  ];
+  const created: string[] = [];
+  const providers = buildProviders(repos, "env-token", (_name, token) => {
+    created.push(token);
+    return fakeProvider("passing");
+  });
+  assert.deepEqual(created, ["env-token"]);
+  assert.equal(providers.size, 1);
 });

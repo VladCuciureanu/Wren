@@ -5,8 +5,7 @@ import { fileURLToPath } from "node:url";
 import { parseCli, HELP_TEXT, VERSION } from "./cli.ts";
 import { loadConfig } from "./config.ts";
 import { createProvider } from "./providers/mod.ts";
-import type { Provider } from "./providers/mod.ts";
-import { IngestionLoop } from "./ingestion.ts";
+import { IngestionLoop, buildProviders } from "./ingestion.ts";
 import type { RepoStatus } from "./ingestion.ts";
 import { calculateMood } from "./state.ts";
 import type { Mood } from "./state.ts";
@@ -56,14 +55,7 @@ async function main() {
   }
 
   // Build providers (group by provider+token to share instances)
-  const providers = new Map<string, Provider>();
-  for (const repo of config.repos) {
-    const key = repo.provider;
-    if (!providers.has(key)) {
-      const token = repo.token ?? process.env.GITHUB_TOKEN ?? "";
-      providers.set(key, createProvider(repo.provider, token));
-    }
-  }
+  const providers = buildProviders(config.repos, process.env.GITHUB_TOKEN ?? "", createProvider);
 
   // Resolve assets dir
   const assetsDir = fileURLToPath(new URL(`../assets/${config.general.theme}`, import.meta.url));
