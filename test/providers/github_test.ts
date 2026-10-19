@@ -1,68 +1,69 @@
-import { assertEquals } from "@std/assert";
+import assert from "node:assert/strict";
+import { test } from "node:test";
 import { mapRunsToState } from "../../src/providers/github.ts";
 
-Deno.test("mapRunsToState: empty runs returns unknown", () => {
-  assertEquals(mapRunsToState([]), "unknown");
+test("mapRunsToState: empty runs returns unknown", () => {
+  assert.deepEqual(mapRunsToState([]), "unknown");
 });
 
-Deno.test("mapRunsToState: successful build returns passing", () => {
-  assertEquals(
+test("mapRunsToState: successful build returns passing", () => {
+  assert.deepEqual(
     mapRunsToState([{ status: "completed", conclusion: "success", name: "CI" }]),
     "passing",
   );
 });
 
-Deno.test("mapRunsToState: failed build returns failing", () => {
-  assertEquals(
+test("mapRunsToState: failed build returns failing", () => {
+  assert.deepEqual(
     mapRunsToState([{ status: "completed", conclusion: "failure", name: "CI" }]),
     "failing",
   );
 });
 
-Deno.test("mapRunsToState: in_progress returns pending", () => {
-  assertEquals(
+test("mapRunsToState: in_progress returns pending", () => {
+  assert.deepEqual(
     mapRunsToState([{ status: "in_progress", conclusion: null, name: "Build" }]),
     "pending",
   );
 });
 
-Deno.test("mapRunsToState: in_progress deploy returns deploying", () => {
-  assertEquals(
+test("mapRunsToState: in_progress deploy returns deploying", () => {
+  assert.deepEqual(
     mapRunsToState([{ status: "in_progress", conclusion: null, name: "Deploy to prod" }]),
     "deploying",
   );
 });
 
-Deno.test("mapRunsToState: successful deploy returns deploy_success", () => {
-  assertEquals(
+test("mapRunsToState: successful deploy returns deploy_success", () => {
+  assert.deepEqual(
     mapRunsToState([{ status: "completed", conclusion: "success", name: "Deploy" }]),
     "deploy_success",
   );
 });
 
-Deno.test("mapRunsToState: failed deploy returns deploy_failed", () => {
-  assertEquals(
+test("mapRunsToState: failed deploy returns deploy_failed", () => {
+  assert.deepEqual(
     mapRunsToState([{ status: "completed", conclusion: "failure", name: "Deploy staging" }]),
     "deploy_failed",
   );
 });
 
-Deno.test("mapRunsToState: queued returns pending", () => {
-  assertEquals(
+test("mapRunsToState: queued returns pending", () => {
+  assert.deepEqual(
     mapRunsToState([{ status: "queued", conclusion: null, name: "CI" }]),
     "pending",
   );
 });
 
-Deno.test("mapRunsToState: cancelled returns unknown", () => {
-  assertEquals(
+test("mapRunsToState: cancelled returns unknown", () => {
+  assert.deepEqual(
     mapRunsToState([{ status: "completed", conclusion: "cancelled", name: "CI" }]),
     "unknown",
   );
 });
 
-Deno.test("mapRunsToState: unexpected conclusion returns error", () => {
-  assertEquals(
+test("mapRunsToState: unexpected conclusion returns error", () => {
+  assert.deepEqual(
     mapRunsToState([{ status: "completed", conclusion: "timed_out", name: "CI" }]),
     "error",
   );

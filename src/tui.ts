@@ -1,3 +1,4 @@
+import process from "node:process";
 import type { Mood } from "./state.ts";
 import { moodLabel } from "./state.ts";
 import type { RepoStatus } from "./ingestion.ts";
@@ -52,6 +53,6 @@ export function renderTui(state: TuiState): string {
 export function drawTui(state: TuiState): void {
   const output = renderTui(state);
   // Move cursor to top-left and clear screen
-  Deno.stdout.writeSync(new TextEncoder().encode("\x1b[2J\x1b[H"));
-  Deno.stdout.writeSync(new TextEncoder().encode(output));
+  process.stdout.write("\x1b[2J\x1b[H");
+  process.stdout.write(output);
 }

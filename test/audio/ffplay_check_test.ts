@@ -1,9 +1,10 @@
-import { assertEquals } from "@std/assert";
+import assert from "node:assert/strict";
+import { test } from "node:test";
 import { checkFfplay } from "../../src/audio/ffplay.ts";
 
-Deno.test("checkFfplay: returns true when ffplay is available", async () => {
+test("checkFfplay: returns true when ffplay is available", async () => {
   // This test will pass on machines with ffmpeg installed, fail gracefully otherwise
   const result = await checkFfplay();
   // Just verify it returns a boolean without throwing
-  assertEquals(typeof result, "boolean");
+  assert.deepEqual(typeof result, "boolean");
 });

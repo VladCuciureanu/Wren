@@ -1,5 +1,7 @@
-import { parse as parseToml } from "@std/toml";
-import { join } from "@std/path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import process from "node:process";
+import { parse as parseToml } from "smol-toml";
 
 export interface RepoConfig {
   owner: string;
@@ -27,9 +29,9 @@ const DEFAULT_CONFIG: Config = {
 };
 
 export function getConfigDir(): string {
-  const xdg = Deno.env.get("XDG_CONFIG_HOME");
+  const xdg = process.env.XDG_CONFIG_HOME;
   if (xdg) return join(xdg, "wren");
-  const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE") ?? ".";
+  const home = process.env.HOME ?? process.env.USERPROFILE ?? ".";
   return join(home, ".config", "wren");
 }
 
@@ -77,10 +79,10 @@ export function parseConfig(toml: string): Config {
 export async function loadConfig(path?: string): Promise<Config> {
   const configPath = path ?? getConfigPath();
   try {
-    const text = await Deno.readTextFile(configPath);
+    const text = await readFile(configPath, "utf8");
     return parseConfig(text);
   } catch (e) {
-    if (e instanceof Deno.errors.NotFound) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") {
       return { ...DEFAULT_CONFIG };
     }
     throw e;

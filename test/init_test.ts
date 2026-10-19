@@ -1,34 +1,39 @@
-import { assertEquals } from "@std/assert";
+import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import process from "node:process";
+import { test } from "node:test";
 import { runInit } from "../src/init.ts";
 
-Deno.test("runInit: creates config file in temp dir", async () => {
-  const tmpDir = await Deno.makeTempDir();
+test("runInit: creates config file in temp dir", async () => {
+  const tmpDir = await mkdtemp(join(tmpdir(), "wren-"));
   // Override XDG to point to temp dir
-  const origXdg = Deno.env.get("XDG_CONFIG_HOME");
-  Deno.env.set("XDG_CONFIG_HOME", tmpDir);
+  const origXdg = process.env.XDG_CONFIG_HOME;
+  process.env.XDG_CONFIG_HOME = tmpDir;
 
   // Capture exit calls
   let exitCalled = false;
-  const origExit = Deno.exit;
-  // deno-lint-ignore no-explicit-any
-  (Deno as any).exit = () => { exitCalled = true; };
+  const origExit = process.exit;
+  process.exit = (() => {
+    exitCalled = true;
+  }) as typeof process.exit;
 
   try {
     await runInit();
     const configPath = `${tmpDir}/wren/config.toml`;
-    const content = await Deno.readTextFile(configPath);
-    assertEquals(content.includes("[general]"), true);
-    assertEquals(content.includes("poll_interval = 45"), true);
-    assertEquals(content.includes("[[repos]]"), true);
-    assertEquals(exitCalled, false);
+    const content = await readFile(configPath, "utf8");
+    assert.deepEqual(content.includes("[general]"), true);
+    assert.deepEqual(content.includes("poll_interval = 45"), true);
+    assert.deepEqual(content.includes("[[repos]]"), true);
+    assert.deepEqual(exitCalled, false);
   } finally {
-    // deno-lint-ignore no-explicit-any
-    (Deno as any).exit = origExit;
+    process.exit = origExit;
     if (origXdg) {
-      Deno.env.set("XDG_CONFIG_HOME", origXdg);
+      process.env.XDG_CONFIG_HOME = origXdg;
     } else {
-      Deno.env.delete("XDG_CONFIG_HOME");
+      delete process.env.XDG_CONFIG_HOME;
     }
-    await Deno.remove(tmpDir, { recursive: true });
+    await rm(tmpDir, { recursive: true });
   }
 });

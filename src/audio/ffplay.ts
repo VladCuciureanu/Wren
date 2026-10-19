@@ -1,3 +1,5 @@
+import { type ChildProcess, execFile, spawn } from "node:child_process";
+import { promisify } from "node:util";
 import type { Mood } from "../state.ts";
 
 const MOOD_KEYS: (keyof Mood)[] = ["birdsong", "wind", "thunder", "rain", "hum", "chime", "static_"];
@@ -21,16 +23,15 @@ export interface AudioEngine {
 
 export async function checkFfplay(): Promise<boolean> {
   try {
-    const cmd = new Deno.Command("ffplay", { args: ["-version"], stdout: "null", stderr: "null" });
-    const { success } = await cmd.output();
-    return success;
+    await promisify(execFile)("ffplay", ["-version"]);
+    return true;
   } catch {
     return false;
   }
 }
 
 export class FfplayEngine implements AudioEngine {
-  #processes = new Map<keyof Mood, Deno.ChildProcess>();
+  #processes = new Map<keyof Mood, ChildProcess>();
   #assetsDir: string;
   #masterVolume: number;
   #currentMood: Mood | null = null;
@@ -85,13 +86,11 @@ export class FfplayEngine implements AudioEngine {
     const file = `${this.#assetsDir}/${LAYER_FILES[key]}`;
     const effectiveVol = Math.round(layerVolume * this.#masterVolume);
 
-    const cmd = new Deno.Command("ffplay", {
-      args: ["-nodisp", "-loop", "0", "-volume", String(effectiveVol), "-loglevel", "quiet", file],
-      stdout: "null",
-      stderr: "null",
-    });
-
-    const child = cmd.spawn();
+    const child = spawn(
+      "ffplay",
+      ["-nodisp", "-loop", "0", "-volume", String(effectiveVol), "-loglevel", "quiet", file],
+      { stdio: ["inherit", "ignore", "ignore"] },
+    );
     this.#processes.set(key, child);
   }
 

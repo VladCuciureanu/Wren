@@ -1,36 +1,37 @@
-import { assertEquals } from "@std/assert";
+import assert from "node:assert/strict";
+import { test } from "node:test";
 import { parseCli } from "../src/cli.ts";
 
-Deno.test("parseCli: defaults", () => {
+test("parseCli: defaults", () => {
   const args = parseCli([]);
-  assertEquals(args.help, false);
-  assertEquals(args.version, false);
-  assertEquals(args.mute, false);
-  assertEquals(args.volume, 80);
-  assertEquals(args.config, undefined);
-  assertEquals(args.init, false);
+  assert.deepEqual(args.help, false);
+  assert.deepEqual(args.version, false);
+  assert.deepEqual(args.mute, false);
+  assert.deepEqual(args.volume, 80);
+  assert.deepEqual(args.config, undefined);
+  assert.deepEqual(args.init, false);
 });
 
-Deno.test("parseCli: --help flag", () => {
-  assertEquals(parseCli(["--help"]).help, true);
-  assertEquals(parseCli(["-h"]).help, true);
+test("parseCli: --help flag", () => {
+  assert.deepEqual(parseCli(["--help"]).help, true);
+  assert.deepEqual(parseCli(["-h"]).help, true);
 });
 
-Deno.test("parseCli: --version flag", () => {
-  assertEquals(parseCli(["--version"]).version, true);
-  assertEquals(parseCli(["-v"]).version, true);
+test("parseCli: --version flag", () => {
+  assert.deepEqual(parseCli(["--version"]).version, true);
+  assert.deepEqual(parseCli(["-v"]).version, true);
 });
 
-Deno.test("parseCli: --config path", () => {
-  assertEquals(parseCli(["--config", "/tmp/wren.toml"]).config, "/tmp/wren.toml");
-  assertEquals(parseCli(["-c", "/tmp/wren.toml"]).config, "/tmp/wren.toml");
+test("parseCli: --config path", () => {
+  assert.deepEqual(parseCli(["--config", "/tmp/wren.toml"]).config, "/tmp/wren.toml");
+  assert.deepEqual(parseCli(["-c", "/tmp/wren.toml"]).config, "/tmp/wren.toml");
 });
 
-Deno.test("parseCli: --mute flag", () => {
-  assertEquals(parseCli(["--mute"]).mute, true);
-  assertEquals(parseCli(["-m"]).mute, true);
+test("parseCli: --mute flag", () => {
+  assert.deepEqual(parseCli(["--mute"]).mute, true);
+  assert.deepEqual(parseCli(["-m"]).mute, true);
 });
 
-Deno.test("parseCli: init subcommand", () => {
-  assertEquals(parseCli(["init"]).init, true);
+test("parseCli: init subcommand", () => {
+  assert.deepEqual(parseCli(["init"]).init, true);
 });

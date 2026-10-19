@@ -1,5 +1,7 @@
-#!/usr/bin/env -S deno run --allow-net --allow-read --allow-env --allow-run
+#!/usr/bin/env node
 
+import process from "node:process";
+import { fileURLToPath } from "node:url";
 import { parseCli, HELP_TEXT, VERSION } from "./cli.ts";
 import { loadConfig } from "./config.ts";
 import { createProvider } from "./providers/mod.ts";
@@ -14,19 +16,19 @@ import { drawTui } from "./tui.ts";
 import { runInit } from "./init.ts";
 
 async function main() {
-  const args = parseCli(Deno.args);
+  const args = parseCli(process.argv.slice(2));
 
   if (args.help) {
     console.log(HELP_TEXT);
-    Deno.exit(0);
+    process.exit(0);
   }
   if (args.version) {
     console.log(`wren ${VERSION}`);
-    Deno.exit(0);
+    process.exit(0);
   }
   if (args.init) {
     await runInit();
-    Deno.exit(0);
+    process.exit(0);
   }
 
   // Check ffplay
@@ -34,15 +36,15 @@ async function main() {
     console.error("Error: ffplay not found on PATH.");
     console.error("");
     console.error("Install FFmpeg:");
-    if (Deno.build.os === "darwin") {
+    if (process.platform === "darwin") {
       console.error("  brew install ffmpeg");
-    } else if (Deno.build.os === "linux") {
+    } else if (process.platform === "linux") {
       console.error("  sudo apt install ffmpeg   # Debian/Ubuntu");
       console.error("  sudo dnf install ffmpeg   # Fedora");
     } else {
       console.error("  https://ffmpeg.org/download.html");
     }
-    Deno.exit(1);
+    process.exit(1);
   }
 
   const config = await loadConfig(args.config);
@@ -50,7 +52,7 @@ async function main() {
   if (config.repos.length === 0) {
     console.error("No repos configured. Run `wren init` to create a config file,");
     console.error(`then edit ${args.config ?? "~/.config/wren/config.toml"} to add repos.`);
-    Deno.exit(1);
+    process.exit(1);
   }
 
   // Build providers (group by provider+token to share instances)
@@ -58,13 +60,13 @@ async function main() {
   for (const repo of config.repos) {
     const key = repo.provider;
     if (!providers.has(key)) {
-      const token = repo.token ?? Deno.env.get("GITHUB_TOKEN") ?? "";
+      const token = repo.token ?? process.env.GITHUB_TOKEN ?? "";
       providers.set(key, createProvider(repo.provider, token));
     }
   }
 
   // Resolve assets dir
-  const assetsDir = new URL(`../assets/${config.general.theme}`, import.meta.url).pathname;
+  const assetsDir = fileURLToPath(new URL(`../assets/${config.general.theme}`, import.meta.url));
 
   const engine = new FfplayEngine(assetsDir, args.mute ? 0 : args.volume);
   const crossfader = new Crossfader(engine);
@@ -96,43 +98,42 @@ async function main() {
     loop.stop();
     crossfader.stop();
     // Restore terminal
-    Deno.stdout.writeSync(new TextEncoder().encode("\x1b[?25h\n"));
-    Deno.exit(0);
+    process.stdout.write("\x1b[?25h\n");
+    process.exit(0);
   };
 
-  Deno.addSignalListener("SIGINT", cleanup);
-  Deno.addSignalListener("SIGTERM", cleanup);
+  process.on("SIGINT", cleanup);
+  process.on("SIGTERM", cleanup);
 
   // Hide cursor
-  Deno.stdout.writeSync(new TextEncoder().encode("\x1b[?25l"));
+  process.stdout.write("\x1b[?25l");
 
   // Start polling
   loop.start();
 
   // Keyboard input
-  Deno.stdin.setRaw(true);
-  const buf = new Uint8Array(1);
-  while (true) {
-    const n = await Deno.stdin.read(buf);
-    if (n === null) break;
-    const ch = String.fromCharCode(buf[0]);
+  process.stdin.setRawMode(true);
+  input: for await (const chunk of process.stdin as AsyncIterable<Buffer>) {
+    for (const byte of chunk) {
+      const ch = String.fromCharCode(byte);
 
-    if (ch === "q") {
-      cleanup();
-      break;
-    } else if (ch === "m") {
-      muted = !muted;
-      engine.setMasterVolume(muted ? 0 : volume);
-      if (crossfader.currentMood) redraw(crossfader.currentMood);
-    } else if (ch === "+" || ch === "=") {
-      volume = Math.min(100, volume + 5);
-      muted = false;
-      engine.setMasterVolume(volume);
-      if (crossfader.currentMood) redraw(crossfader.currentMood);
-    } else if (ch === "-") {
-      volume = Math.max(0, volume - 5);
-      engine.setMasterVolume(volume);
-      if (crossfader.currentMood) redraw(crossfader.currentMood);
+      if (ch === "q") {
+        cleanup();
+        break input;
+      } else if (ch === "m") {
+        muted = !muted;
+        engine.setMasterVolume(muted ? 0 : volume);
+        if (crossfader.currentMood) redraw(crossfader.currentMood);
+      } else if (ch === "+" || ch === "=") {
+        volume = Math.min(100, volume + 5);
+        muted = false;
+        engine.setMasterVolume(volume);
+        if (crossfader.currentMood) redraw(crossfader.currentMood);
+      } else if (ch === "-") {
+        volume = Math.max(0, volume - 5);
+        engine.setMasterVolume(volume);
+        if (crossfader.currentMood) redraw(crossfader.currentMood);
+      }
     }
   }
 }

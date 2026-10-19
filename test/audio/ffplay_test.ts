@@ -1,7 +1,8 @@
-import { assertEquals } from "@std/assert";
+import assert from "node:assert/strict";
+import { test } from "node:test";
 import { checkFfplay } from "../../src/audio/ffplay.ts";
 
-Deno.test("checkFfplay: returns boolean", async () => {
+test("checkFfplay: returns boolean", async () => {
   const result = await checkFfplay();
-  assertEquals(typeof result, "boolean");
+  assert.deepEqual(typeof result, "boolean");
 });

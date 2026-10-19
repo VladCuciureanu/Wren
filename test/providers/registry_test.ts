@@ -1,7 +1,8 @@
-import { assertThrows } from "@std/assert";
+import assert from "node:assert/strict";
+import { test } from "node:test";
 import { createProvider } from "../../src/providers/mod.ts";
 
-Deno.test("createProvider: resolves github provider", () => {
+test("createProvider: resolves github provider", () => {
   const provider = createProvider("github", "fake-token");
   // Should return an object with a poll method
   if (typeof provider.poll !== "function") {
@@ -9,6 +10,6 @@ Deno.test("createProvider: resolves github provider", () => {
   }
 });
 
-Deno.test("createProvider: throws on unknown provider", () => {
-  assertThrows(() => createProvider("bitbucket", "token"), Error, 'Unknown provider: "bitbucket"');
+test("createProvider: throws on unknown provider", () => {
+  assert.throws(() => createProvider("bitbucket", "token"), /Unknown provider: "bitbucket"/);
 });

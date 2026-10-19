@@ -15,7 +15,7 @@ export class IngestionLoop {
   #providers: Map<string, Provider>;
   #intervalMs: number;
   #callback: StatusCallback;
-  #timer: number | undefined;
+  #timer: ReturnType<typeof setTimeout> | undefined;
   #running = false;
 
   constructor(
@@ -56,7 +56,7 @@ export class IngestionLoop {
       const statuses = await this.pollOnce();
       this.#callback(statuses);
       if (this.#running) {
-        this.#timer = setTimeout(tick, this.#intervalMs) as unknown as number;
+        this.#timer = setTimeout(tick, this.#intervalMs);
       }
     };
     tick();

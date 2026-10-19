@@ -4,32 +4,35 @@ Ambient sound from your CI pipeline. Green builds = birdsong. Failing tests = di
 
 ## Requirements
 
-- [Deno](https://deno.land/) v2+
+- [Node.js](https://nodejs.org/) 24 LTS or newer
 - [FFmpeg](https://ffmpeg.org/) (provides `ffplay`)
 
 ## Install
 
 ```sh
 # macOS
-brew install deno ffmpeg
+brew install node ffmpeg
 
 # Linux
-# Install Deno: https://deno.land/#installation
+# Install Node.js 24+: https://nodejs.org/en/download
 sudo apt install ffmpeg   # Debian/Ubuntu
+
+# Then, in the repo
+npm install
 ```
 
 ## Quick Start
 
 ```sh
 # Generate a config file
-deno task start init
+npm start -- init
 
 # Edit the config to add your repos
 # (uses your default editor, or open manually)
 $EDITOR ~/.config/wren/config.toml
 
 # Run
-deno task start
+npm start
 ```
 
 ## Config
@@ -96,14 +99,14 @@ Options:
 
 ```sh
 # Run tests
-deno task test
+npm test
 
 # Type check
-deno task check
+npm run typecheck
 
 # Format
-deno task fmt
+npm run format
 
 # Lint
-deno task lint
+npm run lint
 ```

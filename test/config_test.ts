@@ -1,7 +1,8 @@
-import { assertEquals, assertThrows } from "@std/assert";
+import assert from "node:assert/strict";
+import { test } from "node:test";
 import { parseConfig } from "../src/config.ts";
 
-Deno.test("parseConfig: parses valid TOML with all fields", () => {
+test("parseConfig: parses valid TOML with all fields", () => {
   const toml = `
 [general]
 poll_interval = 60
@@ -19,68 +20,67 @@ owner = "acme"
 name = "web"
 `;
   const config = parseConfig(toml);
-  assertEquals(config.general.poll_interval, 60);
-  assertEquals(config.general.volume, 50);
-  assertEquals(config.general.theme, "ocean");
-  assertEquals(config.repos.length, 2);
-  assertEquals(config.repos[0].owner, "acme");
-  assertEquals(config.repos[0].name, "api");
-  assertEquals(config.repos[0].token, "ghp_abc123");
-  assertEquals(config.repos[1].provider, "github");
-  assertEquals(config.repos[1].token, undefined);
+  assert.deepEqual(config.general.poll_interval, 60);
+  assert.deepEqual(config.general.volume, 50);
+  assert.deepEqual(config.general.theme, "ocean");
+  assert.deepEqual(config.repos.length, 2);
+  assert.deepEqual(config.repos[0].owner, "acme");
+  assert.deepEqual(config.repos[0].name, "api");
+  assert.deepEqual(config.repos[0].token, "ghp_abc123");
+  assert.deepEqual(config.repos[1].provider, "github");
+  assert.deepEqual(config.repos[1].token, undefined);
 });
 
-Deno.test("parseConfig: uses defaults when general section is missing", () => {
+test("parseConfig: uses defaults when general section is missing", () => {
   const config = parseConfig("");
-  assertEquals(config.general.poll_interval, 45);
-  assertEquals(config.general.volume, 80);
-  assertEquals(config.general.theme, "forest");
-  assertEquals(config.repos.length, 0);
+  assert.deepEqual(config.general.poll_interval, 45);
+  assert.deepEqual(config.general.volume, 80);
+  assert.deepEqual(config.general.theme, "forest");
+  assert.deepEqual(config.repos.length, 0);
 });
 
-Deno.test("parseConfig: uses defaults for missing general keys", () => {
+test("parseConfig: uses defaults for missing general keys", () => {
   const toml = `
 [general]
 volume = 30
 `;
   const config = parseConfig(toml);
-  assertEquals(config.general.poll_interval, 45);
-  assertEquals(config.general.volume, 30);
-  assertEquals(config.general.theme, "forest");
+  assert.deepEqual(config.general.poll_interval, 45);
+  assert.deepEqual(config.general.volume, 30);
+  assert.deepEqual(config.general.theme, "forest");
 });
 
-Deno.test("parseConfig: rejects poll_interval < 10", () => {
+test("parseConfig: rejects poll_interval < 10", () => {
   const toml = `
 [general]
 poll_interval = 5
 `;
-  assertThrows(() => parseConfig(toml), Error, "poll_interval must be a number >= 10");
+  assert.throws(() => parseConfig(toml), /poll_interval must be a number >= 10/);
 });
 
-Deno.test("parseConfig: rejects volume out of range", () => {
-  assertThrows(
+test("parseConfig: rejects volume out of range", () => {
+  assert.throws(
     () =>
       parseConfig(`
 [general]
 volume = 150
 `),
-    Error,
-    "volume must be a number between 0 and 100",
+    /volume must be a number between 0 and 100/,
   );
 });
 
-Deno.test("parseConfig: rejects repo missing owner", () => {
+test("parseConfig: rejects repo missing owner", () => {
   const toml = `
 [[repos]]
 name = "api"
 `;
-  assertThrows(() => parseConfig(toml), Error, "repos[0].owner must be a non-empty string");
+  assert.throws(() => parseConfig(toml), /repos\[0\]\.owner must be a non-empty string/);
 });
 
-Deno.test("parseConfig: rejects repo missing name", () => {
+test("parseConfig: rejects repo missing name", () => {
   const toml = `
 [[repos]]
 owner = "acme"
 `;
-  assertThrows(() => parseConfig(toml), Error, "repos[0].name must be a non-empty string");
+  assert.throws(() => parseConfig(toml), /repos\[0\]\.name must be a non-empty string/);
 });
