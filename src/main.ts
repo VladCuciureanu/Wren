@@ -2,7 +2,7 @@
 
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { parseCli, HELP_TEXT, VERSION } from "./cli.ts";
+import { parseCli, resolveVolume, HELP_TEXT, VERSION } from "./cli.ts";
 import { loadConfig } from "./config.ts";
 import { createProvider } from "./providers/mod.ts";
 import { IngestionLoop, buildProviders } from "./ingestion.ts";
@@ -60,12 +60,13 @@ async function main() {
   // Resolve assets dir
   const assetsDir = fileURLToPath(new URL(`../assets/${config.general.theme}`, import.meta.url));
 
-  const engine = new FfplayEngine(assetsDir, args.mute ? 0 : args.volume);
+  const initial = resolveVolume(args, config.general.volume);
+  const engine = new FfplayEngine(assetsDir, initial.engineVolume);
   const crossfader = new Crossfader(engine);
 
   let currentStatuses: RepoStatus[] = [];
-  let volume = args.mute ? 0 : args.volume;
-  let muted = args.mute;
+  let volume = initial.volume;
+  let muted = initial.muted;
 
   const redraw = (mood: Mood) => {
     drawTui({ mood, statuses: currentStatuses, volume, muted });

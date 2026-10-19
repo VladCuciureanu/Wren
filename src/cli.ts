@@ -2,7 +2,8 @@ import { parseArgs } from "node:util";
 
 export interface CliArgs {
   config?: string;
-  volume: number;
+  /** Undefined when `--volume` was not given; fall back to the config. */
+  volume?: number;
   mute: boolean;
   help: boolean;
   version: boolean;
@@ -25,7 +26,7 @@ export function parseCli(args: string[]): CliArgs {
     allowPositionals: true,
   });
 
-  const volume = values.volume !== undefined ? Number(values.volume) : 80;
+  const volume = values.volume !== undefined ? Number(values.volume) : undefined;
   // A value-less `--config` yielded "" under @std/cli; node:util yields `true`.
   const config = values.config === true ? "" : values.config as string | undefined;
 
@@ -37,6 +38,20 @@ export function parseCli(args: string[]): CliArgs {
     version: values.version as boolean,
     init: positionals[0] === "init" ? true : values.init as boolean,
   };
+}
+
+export interface InitialVolume {
+  /** Master volume to restore when unmuted. */
+  volume: number;
+  muted: boolean;
+  /** Volume the audio engine should start at. */
+  engineVolume: number;
+}
+
+/** Resolve the startup volume: `--volume` overrides `general.volume`. */
+export function resolveVolume(args: Pick<CliArgs, "volume" | "mute">, configVolume: number): InitialVolume {
+  const volume = args.volume ?? configVolume;
+  return { volume, muted: args.mute, engineVolume: args.mute ? 0 : volume };
 }
 
 export const VERSION = "0.1.0";
@@ -52,7 +67,7 @@ COMMANDS:
 
 OPTIONS:
   -c, --config <path>   Path to config.toml (default: ~/.config/wren/config.toml)
-  --volume <0-100>      Set volume (default: 80)
+  --volume <0-100>      Set volume (default: general.volume from config, 80)
   -m, --mute            Start muted
   -v, --version         Print version
   -h, --help            Print this help
