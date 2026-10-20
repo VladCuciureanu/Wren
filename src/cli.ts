@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
 export interface CliArgs {
@@ -82,7 +83,10 @@ export function resolveVolume(
   return { volume, muted: args.mute, engineVolume: args.mute ? 0 : volume };
 }
 
-export const VERSION = "0.1.0";
+/** The version in package.json, which sits one level above both src/ and dist/. */
+export const VERSION: string = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+).version;
 
 export const HELP_TEXT = `wren — ambient sound from your CI pipeline
 

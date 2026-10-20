@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { parseCli, resolveVolume, UsageError } from "../src/cli.ts";
+import { parseCli, resolveVolume, UsageError, VERSION } from "../src/cli.ts";
 
 test("parseCli: defaults", () => {
   const args = parseCli([]);
@@ -93,4 +94,9 @@ test("parseCli: rejects a --volume that is not a number from 0 to 100", () => {
 
 test("parseCli: init is a command, not a flag", () => {
   assert.throws(() => parseCli(["--init"]), { message: "unknown option '--init'" });
+});
+
+test("VERSION: comes from package.json", () => {
+  const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  assert.equal(VERSION, pkg.version);
 });
