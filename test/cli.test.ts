@@ -92,6 +92,41 @@ test("parseCli: rejects a --volume that is not a number from 0 to 100", () => {
   assert.equal(parseCli(["--volume", "100"]).volume, 100);
 });
 
+test("parseCli: an option value that looks like an option suggests the = form", () => {
+  assert.throws(() => parseCli(["--volume", "-5"]), {
+    name: "Error",
+    message: "option '--volume' got '-5', which looks like an option; write --volume=-5",
+  });
+  assert.throws(() => parseCli(["-c", "-x"]), {
+    message: "option '-c' got '-x', which looks like an option; write --config=-x",
+  });
+});
+
+test("parseCli: an option followed by a long option is missing its value", () => {
+  assert.throws(() => parseCli(["--volume", "--config", "x"]), {
+    message: "option '--volume' needs a value",
+  });
+  assert.throws(() => parseCli(["-c", "--mute"]), { message: "option '-c' needs a value" });
+});
+
+test("parseCli: the --opt=-value form accepts a value starting with a dash", () => {
+  assert.equal(parseCli(["--config=-x"]).config, "-x");
+  assert.throws(() => parseCli(["--volume=-5"]), {
+    message: "--volume must be a number from 0 to 100, got '-5'",
+  });
+});
+
+test("parseCli: parseArgs errors become a single line without trailing periods", () => {
+  for (const args of [["--frobnicate"], ["-x"], ["--mute=yes"], ["--config"], ["--volume", "-5"]]) {
+    assert.throws(
+      () => parseCli(args),
+      (e: unknown) =>
+        e instanceof UsageError && !e.message.includes("\n") && !/\.$/.test(e.message),
+      args.join(" "),
+    );
+  }
+});
+
 test("parseCli: init is a command, not a flag", () => {
   assert.throws(() => parseCli(["--init"]), { message: "unknown option '--init'" });
 });
