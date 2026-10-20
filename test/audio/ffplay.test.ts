@@ -126,6 +126,19 @@ test("FfplayEngine: start spawns one looping process per audible layer", () => {
   );
 });
 
+test("FfplayEngine: master volume defaults to 80 when masterVolume is omitted", () => {
+  const { spawned, spawn } = fakeSpawn();
+  const engine = new FfplayEngine({ assetsDir: "assets", spawn });
+  engine.start(calm);
+  assert.deepEqual(
+    spawned.map((s) => [s.file, s.volume]),
+    [
+      ["assets/birdsong.ogg", 80],
+      ["assets/wind.ogg", 16],
+    ],
+  );
+});
+
 test("FfplayEngine: update only restarts layers whose volume changed", () => {
   const { spawned, spawn } = fakeSpawn();
   const engine = new FfplayEngine({ assetsDir: "assets", masterVolume: 100, spawn });
