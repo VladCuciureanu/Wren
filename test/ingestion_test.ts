@@ -46,24 +46,26 @@ test("IngestionLoop.pollOnce: isolates errors per repo", async () => {
   assert.deepEqual(statuses[1].error, "network error");
 });
 
-test("IngestionLoop: start/stop calls callback", async () => {
+test("IngestionLoop: start polls repeatedly and stop halts polling", async () => {
   const repos: RepoConfig[] = [{ owner: "a", name: "b", provider: "github" }];
   const providers = new Map([["github", fakeProvider("failing")]]);
 
+  // Wait for the second callback rather than sleeping a fixed wall-clock time.
+  const { promise: secondCall, resolve } = Promise.withResolvers<void>();
   let callCount = 0;
-  const loop = new IngestionLoop(repos, providers, 50, (statuses) => {
+  const loop = new IngestionLoop(repos, providers, 1, (statuses) => {
     callCount++;
     assert.deepEqual(statuses[0].state, "failing");
+    if (callCount === 2) resolve();
   });
 
   loop.start();
-  await new Promise((r) => setTimeout(r, 180));
+  await secondCall;
   loop.stop();
 
-  // Should have been called at least 2 times in 180ms with 50ms interval
-  if (callCount < 2) {
-    throw new Error(`Expected at least 2 callbacks, got ${callCount}`);
-  }
+  const stoppedAt = callCount;
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(callCount, stoppedAt);
 });
 
 test("buildProviders: repos with different tokens get different providers", async () => {
