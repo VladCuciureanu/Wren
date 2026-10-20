@@ -86,6 +86,10 @@ test("shellQuote: win32 uses PowerShell single quotes, which are fully literal",
   assert.equal(win(String.raw`C:\$HOME\wren.toml`), String.raw`'C:\$HOME\wren.toml'`);
   // An embedded single quote is doubled.
   assert.equal(win(String.raw`C:\it's\wren.toml`), String.raw`'C:\it''s\wren.toml'`);
+  // PowerShell also treats the curly quotes U+2018 to U+201B as single quotes.
+  for (const q of ["\u2018", "\u2019", "\u201A", "\u201B"]) {
+    assert.equal(win(`C:\\it${q}s\\w.toml`), `'C:\\it${q}${q}s\\w.toml'`, q);
+  }
 });
 
 test("runInit: the run hint quotes a --config path with spaces", async (t) => {
