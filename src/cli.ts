@@ -34,10 +34,7 @@ export function parseCli(args: string[]): CliArgs {
     throw new UsageError("option '-c, --config <path>' needs a path");
   }
 
-  const volume = values.volume === undefined ? undefined : Number(values.volume);
-  if (volume !== undefined && (values.volume?.trim() === "" || !(volume >= 0 && volume <= 100))) {
-    throw new UsageError(`--volume must be a number from 0 to 100, got '${values.volume}'`);
-  }
+  const volume = values.volume === undefined ? undefined : parseVolume(values.volume);
 
   return {
     config: values.config,
@@ -92,6 +89,15 @@ function describeParseError(e: unknown, args: string[]): string {
     .trim()
     .replace(/\.+$/, "");
   return message.charAt(0).toLowerCase() + message.slice(1);
+}
+
+/** Parse `--volume`: a plain decimal integer from 0 to 100, nothing else. */
+function parseVolume(value: string): number {
+  const volume = Number(value);
+  if (!/^\d+$/.test(value) || volume > 100) {
+    throw new UsageError(`--volume must be a whole number from 0 to 100, got '${value}'`);
+  }
+  return volume;
 }
 
 export interface InitialVolume {

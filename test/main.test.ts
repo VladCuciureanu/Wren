@@ -73,7 +73,7 @@ test("main: --volume=-5 reaches the volume check instead of the ambiguity error"
   assert.equal(result.status, 2);
   assert.equal(
     result.stderr,
-    "wren: --volume must be a number from 0 to 100, got '-5' (see 'wren --help')\n",
+    "wren: --volume must be a whole number from 0 to 100, got '-5' (see 'wren --help')\n",
   );
 });
 
