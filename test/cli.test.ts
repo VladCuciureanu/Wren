@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { parseCli, resolveVolume } from "../src/cli.ts";
+import { parseCli, resolveVolume, UsageError, VERSION } from "../src/cli.ts";
 
 test("parseCli: defaults", () => {
   const args = parseCli([]);
@@ -58,4 +59,44 @@ test("resolveVolume: --mute starts engine silent but keeps configured volume for
     muted: true,
     engineVolume: 0,
   });
+});
+
+test("parseCli: rejects unknown options", () => {
+  assert.throws(() => parseCli(["--frobnicate"]), {
+    name: "Error",
+    message: "unknown option '--frobnicate'",
+  });
+  assert.throws(() => parseCli(["-x"]), UsageError);
+  assert.throws(() => parseCli(["--mute=yes"]), UsageError);
+});
+
+test("parseCli: rejects unknown commands and extra arguments", () => {
+  assert.throws(() => parseCli(["start"]), { message: "unknown command 'start'" });
+  assert.throws(() => parseCli(["init", "now"]), { message: "unexpected argument 'now'" });
+});
+
+test("parseCli: rejects --config without a path", () => {
+  assert.throws(() => parseCli(["--config"]), UsageError);
+  assert.throws(() => parseCli(["--config", "--mute"]), UsageError);
+  assert.throws(() => parseCli(["--config="]), /needs a path/);
+});
+
+test("parseCli: rejects a --volume that is not a number from 0 to 100", () => {
+  for (const value of ["abc", "500", "-1", "", "NaN"]) {
+    assert.throws(() => parseCli([`--volume=${value}`]), UsageError, value);
+  }
+  assert.throws(() => parseCli(["--volume", "abc"]), {
+    message: "--volume must be a number from 0 to 100, got 'abc'",
+  });
+  assert.equal(parseCli(["--volume", "0"]).volume, 0);
+  assert.equal(parseCli(["--volume", "100"]).volume, 100);
+});
+
+test("parseCli: init is a command, not a flag", () => {
+  assert.throws(() => parseCli(["--init"]), { message: "unknown option '--init'" });
+});
+
+test("VERSION: comes from package.json", () => {
+  const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  assert.equal(VERSION, pkg.version);
 });

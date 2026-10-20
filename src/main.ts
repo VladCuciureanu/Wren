@@ -1,16 +1,22 @@
 #!/usr/bin/env node
 
+import { readdir } from "node:fs/promises";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { createUpdateHandler, currentNotice, type ViewState } from "./app.ts";
+import {
+  applyVolumeKey,
+  createUpdateHandler,
+  currentNotice,
+  missingTokenWarning,
+  type ViewState,
+} from "./app.ts";
 import { Crossfader } from "./audio/crossfade.ts";
 import { checkFfplay, FfplayEngine } from "./audio/ffplay.ts";
-import { HELP_TEXT, parseCli, resolveVolume, VERSION } from "./cli.ts";
-import { loadConfig } from "./config.ts";
+import { HELP_TEXT, parseCli, resolveVolume, UsageError, VERSION } from "./cli.ts";
+import { getConfigPath, loadConfig } from "./config.ts";
 import { buildProviders, IngestionLoop } from "./ingestion.ts";
 import { runInit } from "./init.ts";
 import { keyAction } from "./keys.ts";
-import { createProvider } from "./providers/mod.ts";
 import { onceOnExit } from "./shutdown.ts";
 import type { Mood } from "./state.ts";
 import { drawTui } from "./tui.ts";
@@ -27,16 +33,26 @@ async function main() {
     process.exit(0);
   }
   if (args.init) {
-    await runInit();
-    process.exit(0);
+    await runInit(args.config);
+    return;
   }
 
   const config = await loadConfig(args.config);
 
   if (config.repos.length === 0) {
     console.error("No repos configured. Run `wren init` to create a config file,");
-    console.error(`then edit ${args.config ?? "~/.config/wren/config.toml"} to add repos.`);
+    console.error(`then edit ${args.config ?? getConfigPath()} to add repos.`);
     process.exit(1);
+  }
+
+  // Each theme is a directory of layer files under assets/; catch a typo here
+  // rather than as every ffplay layer failing.
+  const assetsRoot = fileURLToPath(new URL("../assets/", import.meta.url));
+  const themes = (await readdir(assetsRoot, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+  if (!themes.includes(config.general.theme)) {
+    throw new Error(`general.theme must be one of: ${themes.join(", ")}`);
   }
 
   // Check ffplay
@@ -56,23 +72,37 @@ async function main() {
   }
 
   // Build providers (group by provider+token to share instances)
-  const providers = buildProviders(config.repos, process.env.GITHUB_TOKEN ?? "", createProvider);
+  const envToken = process.env.GITHUB_TOKEN;
+  const providers = buildProviders(config.repos, envToken ?? "");
 
   // Resolve assets dir
   const assetsDir = fileURLToPath(new URL(`../assets/${config.general.theme}`, import.meta.url));
 
   const initial = resolveVolume(args, config.general.volume);
-  const view: ViewState = { statuses: [], volume: initial.volume, muted: initial.muted };
+  const view: ViewState = {
+    statuses: [],
+    volume: initial.volume,
+    muted: initial.muted,
+    warning: missingTokenWarning(config.repos, envToken),
+  };
 
   const redraw = (mood: Mood) => {
     drawTui({ mood, ...view, notice: currentNotice(view, engine) });
   };
 
+  /** Redraw outside an update, once there is a mood to show. */
+  const redrawCurrent = () => {
+    if (crossfader.currentMood) redraw(crossfader.currentMood);
+  };
+
   // The notice is read from the engine on each redraw; this only makes a new
   // failure show up right away instead of on the next update.
-  const engine: FfplayEngine = new FfplayEngine(assetsDir, initial.engineVolume, undefined, () => {
-    if (crossfader.currentMood) redraw(crossfader.currentMood);
-  });
+  const engine: FfplayEngine = new FfplayEngine(
+    assetsDir,
+    initial.engineVolume,
+    undefined,
+    redrawCurrent,
+  );
   const crossfader = new Crossfader(engine);
 
   const onUpdate = createUpdateHandler(view, crossfader, redraw);
@@ -124,19 +154,10 @@ async function main() {
         if (action === "quit") {
           cleanup();
           break input;
-        } else if (action === "mute") {
-          view.muted = !view.muted;
+        } else if (action) {
+          applyVolumeKey(view, action);
           engine.setMasterVolume(view.muted ? 0 : view.volume);
-          if (crossfader.currentMood) redraw(crossfader.currentMood);
-        } else if (action === "volume_up") {
-          view.volume = Math.min(100, view.volume + 5);
-          view.muted = false;
-          engine.setMasterVolume(view.volume);
-          if (crossfader.currentMood) redraw(crossfader.currentMood);
-        } else if (action === "volume_down") {
-          view.volume = Math.max(0, view.volume - 5);
-          engine.setMasterVolume(view.volume);
-          if (crossfader.currentMood) redraw(crossfader.currentMood);
+          redrawCurrent();
         }
       }
     }
@@ -167,6 +188,11 @@ function restoreTerminal(): void {
 
 main().catch((e: unknown) => {
   restoreTerminal();
+  if (e instanceof UsageError) {
+    console.error(`wren: ${e.message} (see 'wren --help')`);
+    process.exitCode = 2;
+    return;
+  }
   console.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
   process.exitCode = 1;
 });

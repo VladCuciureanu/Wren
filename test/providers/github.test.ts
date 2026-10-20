@@ -326,3 +326,16 @@ test("GitHubProvider.poll: a retry-after HTTP-date is honoured", async () => {
   await provider.poll("acme", "api");
   assert.equal(requests.length, before + 1);
 });
+
+test("GitHubProvider: sends the token as a bearer token, and no Authorization without one", async () => {
+  const seen: (string | null)[] = [];
+  const fetchFn = (_input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    seen.push(new Headers(init?.headers).get("authorization"));
+    return Promise.resolve(Response.json({ default_branch: "main", workflow_runs: [] }));
+  };
+
+  await new GitHubProvider("tok", { fetch: fetchFn as typeof fetch }).poll("acme", "api");
+  await new GitHubProvider("", { fetch: fetchFn as typeof fetch }).poll("acme", "api");
+
+  assert.deepEqual(seen, ["Bearer tok", "Bearer tok", null, null]);
+});

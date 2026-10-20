@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { RepoConfig } from "../src/config.ts";
 import { buildProviders, IngestionLoop, providerKey } from "../src/ingestion.ts";
-import type { PipelineState, Provider } from "../src/providers/mod.ts";
+import { GitHubProvider, type PipelineState, type Provider } from "../src/providers/mod.ts";
 
 function fakeProvider(state: PipelineState): Provider {
   return {
@@ -132,4 +132,10 @@ test("IngestionLoop: a throwing callback is reported and polling continues", {
 
   assert.equal(errors.length, 1);
   assert.equal(errors[0].message, "drawTui exploded");
+});
+
+test("buildProviders: creates GitHub providers by default", () => {
+  const repos: RepoConfig[] = [{ owner: "a", name: "b", provider: "github" }];
+  const providers = buildProviders(repos, "env-token");
+  assert.ok(providers.get("github") instanceof GitHubProvider);
 });

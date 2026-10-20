@@ -48,18 +48,18 @@ wren
 
 ```
 wren [options]
-wren init
+wren init [-c <path>]
 
-  -c, --config <path>   Config file (default: ~/.config/wren/config.toml)
+  -c, --config <path>   Config file (default: $XDG_CONFIG_HOME/wren/config.toml or ~/.config/wren/config.toml)
       --volume <0-100>  Starting volume (default: general.volume)
   -m, --mute            Start muted
   -v, --version         Print version
   -h, --help            Print help
 ```
 
-`wren init` always writes to the default path and exits 1 if a file is already there. Wren exits 1 if the config is invalid, lists no repos, or `ffplay` is missing.
+`wren init` writes to the `--config` path if given, otherwise the default path, and exits 1 if a file is already there. Wren exits 1 if the config is invalid, a `--config` file is missing (a missing default config just means no repos), the config lists no repos, or `ffplay` is missing. An unknown option or command, an option missing its value, or a `--volume` outside 0-100 exits 2.
 
-While running: `q` or Ctrl+C quits, `m` toggles mute, `+` (or `=`) and `-` change the volume in steps of 5. Without a terminal on stdin, Wren plays until it receives SIGINT or SIGTERM.
+While running: `q` or Ctrl+C quits, `m` toggles mute, `+` (or `=`) and `-` change the volume in steps of 5 and unmute. Without a terminal on stdin, Wren plays until it receives SIGINT or SIGTERM.
 
 ## Config
 
@@ -84,7 +84,7 @@ name = "another-repo"
 
 | Environment variable | Purpose |
 |----------------------|---------|
-| `GITHUB_TOKEN` | Token for repos without their own `token` |
+| `GITHUB_TOKEN` | Token for repos without their own `token`. If it is unset, those repos are polled unauthenticated (60 requests an hour) and Wren shows a warning |
 | `XDG_CONFIG_HOME` | Base directory for the config file |
 
 ## How it sounds

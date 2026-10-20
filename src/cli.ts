@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
 export interface CliArgs {
@@ -10,9 +11,48 @@ export interface CliArgs {
   init: boolean;
 }
 
+/** A bad command line: reported as one line on stderr with exit code 2. */
+export class UsageError extends Error {}
+
 export function parseCli(args: string[]): CliArgs {
-  // strict: false mirrors @std/cli's lenient handling of unknown flags.
-  const { values, positionals } = parseArgs({
+  let parsed: ReturnType<typeof parseOptions>;
+  try {
+    parsed = parseOptions(args);
+  } catch (e) {
+    // node:util appends advice to the first sentence; keep just the problem.
+    const message = e instanceof Error ? e.message.split(/\.\s|\n/)[0] : String(e);
+    throw new UsageError(message.charAt(0).toLowerCase() + message.slice(1));
+  }
+  const { values, positionals } = parsed;
+
+  const [command, ...extra] = positionals;
+  if (command !== undefined && command !== "init") {
+    throw new UsageError(`unknown command '${command}'`);
+  }
+  if (extra.length > 0) {
+    throw new UsageError(`unexpected argument '${extra[0]}'`);
+  }
+  if (values.config === "") {
+    throw new UsageError("option '-c, --config <path>' needs a path");
+  }
+
+  const volume = values.volume === undefined ? undefined : Number(values.volume);
+  if (volume !== undefined && (values.volume?.trim() === "" || !(volume >= 0 && volume <= 100))) {
+    throw new UsageError(`--volume must be a number from 0 to 100, got '${values.volume}'`);
+  }
+
+  return {
+    config: values.config,
+    volume,
+    mute: values.mute,
+    help: values.help,
+    version: values.version,
+    init: command === "init",
+  };
+}
+
+function parseOptions(args: string[]) {
+  return parseArgs({
     args,
     options: {
       config: { type: "string", short: "c" },
@@ -20,24 +60,10 @@ export function parseCli(args: string[]): CliArgs {
       mute: { type: "boolean", short: "m", default: false },
       help: { type: "boolean", short: "h", default: false },
       version: { type: "boolean", short: "v", default: false },
-      init: { type: "boolean", default: false },
     },
-    strict: false,
+    strict: true,
     allowPositionals: true,
   });
-
-  const volume = values.volume !== undefined ? Number(values.volume) : undefined;
-  // A value-less `--config` yielded "" under @std/cli; node:util yields `true`.
-  const config = values.config === true ? "" : (values.config as string | undefined);
-
-  return {
-    config,
-    volume,
-    mute: values.mute as boolean,
-    help: values.help as boolean,
-    version: values.version as boolean,
-    init: positionals[0] === "init" ? true : (values.init as boolean),
-  };
 }
 
 export interface InitialVolume {
@@ -57,19 +83,23 @@ export function resolveVolume(
   return { volume, muted: args.mute, engineVolume: args.mute ? 0 : volume };
 }
 
-export const VERSION = "0.1.0";
+/** The version in package.json, which sits one level above both src/ and dist/. */
+export const VERSION: string = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+).version;
 
 export const HELP_TEXT = `wren — ambient sound from your CI pipeline
 
 USAGE:
   wren [OPTIONS]
-  wren init
+  wren init [-c <path>]
 
 COMMANDS:
-  init          Generate a default config file
+  init          Generate a default config file (at --config, if given)
 
 OPTIONS:
-  -c, --config <path>   Path to config.toml (default: ~/.config/wren/config.toml)
+  -c, --config <path>   Path to config.toml (default: $XDG_CONFIG_HOME/wren/config.toml,
+                        falling back to ~/.config/wren/config.toml)
   --volume <0-100>      Set volume (default: general.volume from config, 80)
   -m, --mute            Start muted
   -v, --version         Print version
@@ -78,5 +108,5 @@ OPTIONS:
 KEYBINDINGS (while running):
   q       Quit
   m       Toggle mute
-  +/-     Volume up/down
+  +/-     Volume up/down (unmutes)
 `;

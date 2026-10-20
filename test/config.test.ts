@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import process from "node:process";
 import { test } from "node:test";
-import { parseConfig } from "../src/config.ts";
+import { loadConfig, parseConfig } from "../src/config.ts";
 
 test("parseConfig: parses valid TOML with all fields", () => {
   const toml = `
@@ -103,4 +107,52 @@ name = "api"
 provider = 3
 `;
   assert.throws(() => parseConfig(toml), /repos\[0\]\.provider must be one of: github/);
+});
+
+test("loadConfig: a missing default config falls back to the defaults", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "wren-config-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const origXdg = process.env.XDG_CONFIG_HOME;
+  process.env.XDG_CONFIG_HOME = dir;
+  t.after(() => {
+    if (origXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = origXdg;
+  });
+
+  const config = await loadConfig();
+  assert.deepEqual(config.repos, []);
+  assert.equal(config.general.theme, "forest");
+});
+
+test("loadConfig: a missing explicit config is an error", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "wren-config-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const path = join(dir, "nope.toml");
+  await assert.rejects(loadConfig(path), { message: `Config file not found: ${path}` });
+});
+
+test("parseConfig: rejects a general that is not a table", () => {
+  assert.throws(() => parseConfig('general = "loud"'), /^Error: general must be a table/);
+});
+
+test("parseConfig: rejects repos that are not an array of tables", () => {
+  const single = `
+[repos]
+owner = "acme"
+name = "api"
+`;
+  assert.throws(() => parseConfig(single), /^Error: repos must be an array of tables/);
+  assert.throws(() => parseConfig('repos = ["acme/api"]'), /^Error: repos\[0\] must be a table/);
+});
+
+test("parseConfig: rejects a token that is not a non-empty string", () => {
+  for (const token of ["123", '""']) {
+    const toml = `
+[[repos]]
+owner = "acme"
+name = "api"
+token = ${token}
+`;
+    assert.throws(() => parseConfig(toml), /repos\[0\]\.token must be a non-empty string/, token);
+  }
 });

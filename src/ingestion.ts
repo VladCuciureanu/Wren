@@ -1,5 +1,5 @@
 import type { RepoConfig } from "./config.ts";
-import type { PipelineState, Provider } from "./providers/mod.ts";
+import { GitHubProvider, type PipelineState, type Provider } from "./providers/mod.ts";
 
 export interface RepoStatus {
   owner: string;
@@ -30,7 +30,7 @@ export function providerKey(repo: RepoConfig): string {
 export function buildProviders(
   repos: RepoConfig[],
   defaultToken: string,
-  create: (name: string, token: string) => Provider,
+  create: (name: string, token: string) => Provider = (_name, token) => new GitHubProvider(token),
 ): Map<string, Provider> {
   const providers = new Map<string, Provider>();
   for (const repo of repos) {
