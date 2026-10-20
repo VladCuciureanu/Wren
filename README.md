@@ -4,7 +4,7 @@ Ambient sound from your CI pipeline. Green builds = birdsong. Failing tests = di
 
 ## Requirements
 
-- [Node.js](https://nodejs.org/) 24 LTS or newer
+- [Node.js](https://nodejs.org/) 26 or newer
 - [FFmpeg](https://ffmpeg.org/) (provides `ffplay`)
 
 ## Install
@@ -14,7 +14,7 @@ Ambient sound from your CI pipeline. Green builds = birdsong. Failing tests = di
 brew install node ffmpeg
 
 # Linux
-# Install Node.js 24+: https://nodejs.org/en/download
+# Install Node.js 26+: https://nodejs.org/en/download
 sudo apt install ffmpeg   # Debian/Ubuntu
 
 # Then install the `wren` command
