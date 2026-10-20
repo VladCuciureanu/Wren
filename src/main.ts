@@ -62,16 +62,20 @@ async function main() {
   const assetsDir = fileURLToPath(new URL(`../assets/${config.general.theme}`, import.meta.url));
 
   const initial = resolveVolume(args, config.general.volume);
-  const engine = new FfplayEngine(assetsDir, initial.engineVolume);
-  const crossfader = new Crossfader(engine);
-
   let currentStatuses: RepoStatus[] = [];
   let volume = initial.volume;
   let muted = initial.muted;
+  let notice: string | undefined;
 
   const redraw = (mood: Mood) => {
-    drawTui({ mood, statuses: currentStatuses, volume, muted });
+    drawTui({ mood, statuses: currentStatuses, volume, muted, notice });
   };
+
+  const engine = new FfplayEngine(assetsDir, initial.engineVolume, undefined, (e) => {
+    notice = `Audio error: ${e.message}`;
+    if (crossfader.currentMood) redraw(crossfader.currentMood);
+  });
+  const crossfader = new Crossfader(engine);
 
   const onUpdate = (statuses: RepoStatus[]) => {
     currentStatuses = statuses;

@@ -19,6 +19,8 @@ export interface TuiState {
   statuses: RepoStatus[];
   volume: number;
   muted: boolean;
+  /** A problem worth surfacing, e.g. audio playback failing. */
+  notice?: string;
 }
 
 export function renderTui(state: TuiState): string {
@@ -42,6 +44,11 @@ export function renderTui(state: TuiState): string {
       const err = s.error ? ` (${s.error})` : "";
       lines.push(`    [${icon}] ${s.owner}/${s.name}${err}`);
     }
+  }
+
+  if (state.notice) {
+    lines.push("");
+    lines.push(`  ! ${state.notice}`);
   }
 
   lines.push("");

@@ -49,3 +49,8 @@ test("renderTui: shows error info", () => {
   });
   assert.deepEqual(output.includes("(timeout)"), true);
 });
+
+test("renderTui: shows a notice when one is set", () => {
+  const output = renderTui({ mood: fog, statuses: [], volume: 80, muted: false, notice: "ffplay failed" });
+  assert.match(output, /! ffplay failed/);
+});
