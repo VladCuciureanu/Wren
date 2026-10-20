@@ -62,7 +62,7 @@ export function shellQuote(arg: string, platform: NodeJS.Platform = process.plat
   if (platform === "win32") {
     return /^[A-Za-z0-9_\-.:\\/]+$/.test(arg)
       ? arg
-      : `'${arg.replace(/['‘’‚‛]/g, "$&$&")}'`;
+      : `'${arg.replace(/['\u2018\u2019\u201A\u201B]/g, "$&$&")}'`;
   }
   return /^[\w@%+=:,./-]+$/.test(arg) ? arg : `'${arg.replaceAll("'", "'\\''")}'`;
 }
