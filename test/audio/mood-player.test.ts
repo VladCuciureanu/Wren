@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Crossfader } from "../../src/audio/crossfade.ts";
 import type { AudioEngine } from "../../src/audio/ffplay.ts";
+import { MoodPlayer } from "../../src/audio/mood-player.ts";
 import type { Mood } from "../../src/state.ts";
 
 const calm: Mood = {
@@ -38,38 +38,38 @@ function recordingEngine() {
   return { calls, engine };
 }
 
-test("Crossfader: first transition calls start", () => {
+test("MoodPlayer: first transition calls start", () => {
   const { calls, engine } = recordingEngine();
-  new Crossfader(engine).transitionTo(calm);
+  new MoodPlayer(engine).transitionTo(calm);
   assert.deepEqual(calls, [{ op: "start", mood: calm }]);
 });
 
-test("Crossfader: no-op when mood unchanged", () => {
+test("MoodPlayer: no-op when mood unchanged", () => {
   const { calls, engine } = recordingEngine();
-  const fader = new Crossfader(engine);
-  fader.transitionTo(calm);
-  fader.transitionTo({ ...calm });
+  const player = new MoodPlayer(engine);
+  player.transitionTo(calm);
+  player.transitionTo({ ...calm });
   assert.equal(calls.length, 1);
 });
 
-test("Crossfader: a mood change is applied with a single update at the target volumes", () => {
+test("MoodPlayer: a mood change is applied with a single update at the target volumes", () => {
   const { calls, engine } = recordingEngine();
-  const fader = new Crossfader(engine);
-  fader.transitionTo(calm);
-  fader.transitionTo(storm);
+  const player = new MoodPlayer(engine);
+  player.transitionTo(calm);
+  player.transitionTo(storm);
   assert.deepEqual(calls, [
     { op: "start", mood: calm },
     { op: "update", mood: storm },
   ]);
 });
 
-test("Crossfader: back-to-back transitions settle on the latest mood", async () => {
+test("MoodPlayer: back-to-back transitions settle on the latest mood", async () => {
   const { calls, engine } = recordingEngine();
-  const fader = new Crossfader(engine);
-  fader.transitionTo(calm);
+  const player = new MoodPlayer(engine);
+  player.transitionTo(calm);
   // Fire-and-forget, as the ingestion callback does: the last call must win.
-  const pending = [fader.transitionTo(storm), fader.transitionTo(calm)];
+  const pending = [player.transitionTo(storm), player.transitionTo(calm)];
   await Promise.all(pending);
-  assert.deepEqual(fader.currentMood, calm);
+  assert.deepEqual(player.currentMood, calm);
   assert.deepEqual(calls.at(-1)?.mood, calm);
 });

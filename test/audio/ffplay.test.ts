@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import type { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { test } from "node:test";
-import { Crossfader } from "../../src/audio/crossfade.ts";
 import { checkFfplay, FfplayEngine } from "../../src/audio/ffplay.ts";
+import { MoodPlayer } from "../../src/audio/mood-player.ts";
 import type { Mood } from "../../src/state.ts";
 
 const calm: Mood = {
@@ -143,13 +143,13 @@ test("FfplayEngine: update only restarts layers whose volume changed", () => {
   );
 });
 
-test("Crossfader + FfplayEngine: a mood change restarts each layer at most once", async () => {
+test("MoodPlayer + FfplayEngine: a mood change restarts each layer at most once", async () => {
   const { spawned, spawn } = fakeSpawn();
   const engine = new FfplayEngine("assets", 100, spawn);
-  const fader = new Crossfader(engine);
-  await fader.transitionTo(calm);
+  const player = new MoodPlayer(engine);
+  await player.transitionTo(calm);
   assert.equal(spawned.length, 2);
-  await fader.transitionTo(storm);
+  await player.transitionTo(storm);
   // storm has 3 audible layers (wind changed, thunder and rain new): exactly 3 new spawns.
   assert.equal(spawned.length - 2, 3);
   assert.deepEqual(
