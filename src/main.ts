@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { readdir } from "node:fs/promises";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { createUpdateHandler, currentNotice, type ViewState } from "./app.ts";
@@ -37,6 +38,16 @@ async function main() {
     console.error("No repos configured. Run `wren init` to create a config file,");
     console.error(`then edit ${args.config ?? getConfigPath()} to add repos.`);
     process.exit(1);
+  }
+
+  // Each theme is a directory of layer files under assets/; catch a typo here
+  // rather than as every ffplay layer failing.
+  const assetsRoot = fileURLToPath(new URL("../assets/", import.meta.url));
+  const themes = (await readdir(assetsRoot, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+  if (!themes.includes(config.general.theme)) {
+    throw new Error(`general.theme must be one of: ${themes.join(", ")}`);
   }
 
   // Check ffplay

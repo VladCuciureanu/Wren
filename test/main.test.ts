@@ -83,3 +83,21 @@ test("main: the no-repos message names the config path under XDG_CONFIG_HOME", (
   const configPath = join(dir, "wren", "config.toml");
   assert.ok(result.stderr.includes(`then edit ${configPath} to add repos.`), result.stderr);
 });
+
+test("main: a theme with no directory under assets/ is a config error", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "wren-main-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const configPath = join(dir, "config.toml");
+  writeFileSync(
+    configPath,
+    '[general]\ntheme = "forrest"\n\n[[repos]]\nowner = "acme"\nname = "api"\n',
+  );
+
+  const result = spawnSync(process.execPath, [mainPath, "--config", configPath], {
+    encoding: "utf8",
+    timeout: 10_000,
+  });
+
+  assert.equal(result.status, 1);
+  assert.equal(result.stderr, "Error: general.theme must be one of: forest\n");
+});
