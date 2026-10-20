@@ -97,12 +97,11 @@ async function main() {
 
   // The notice is read from the engine on each redraw; this only makes a new
   // failure show up right away instead of on the next update.
-  const engine: FfplayEngine = new FfplayEngine(
+  const engine: FfplayEngine = new FfplayEngine({
     assetsDir,
-    initial.engineVolume,
-    undefined,
-    redrawCurrent,
-  );
+    masterVolume: initial.engineVolume,
+    onError: redrawCurrent,
+  });
   const player = new MoodPlayer(engine);
 
   const onUpdate = createUpdateHandler(view, player, redraw);
