@@ -130,3 +130,29 @@ test("loadConfig: a missing explicit config is an error", async (t) => {
   const path = join(dir, "nope.toml");
   await assert.rejects(loadConfig(path), { message: `Config file not found: ${path}` });
 });
+
+test("parseConfig: rejects a general that is not a table", () => {
+  assert.throws(() => parseConfig('general = "loud"'), /^Error: general must be a table/);
+});
+
+test("parseConfig: rejects repos that are not an array of tables", () => {
+  const single = `
+[repos]
+owner = "acme"
+name = "api"
+`;
+  assert.throws(() => parseConfig(single), /^Error: repos must be an array of tables/);
+  assert.throws(() => parseConfig('repos = ["acme/api"]'), /^Error: repos\[0\] must be a table/);
+});
+
+test("parseConfig: rejects a token that is not a non-empty string", () => {
+  for (const token of ["123", '""']) {
+    const toml = `
+[[repos]]
+owner = "acme"
+name = "api"
+token = ${token}
+`;
+    assert.throws(() => parseConfig(toml), /repos\[0\]\.token must be a non-empty string/, token);
+  }
+});
