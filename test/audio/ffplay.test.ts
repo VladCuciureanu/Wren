@@ -13,7 +13,7 @@ const calm: Mood = {
   rain: 0.0,
   hum: 0.0,
   chime: 0.0,
-  static_: 0.0,
+  static: 0.0,
 };
 const storm: Mood = {
   birdsong: 0.0,
@@ -22,7 +22,7 @@ const storm: Mood = {
   rain: 0.7,
   hum: 0.0,
   chime: 0.0,
-  static_: 0.0,
+  static: 0.0,
 };
 
 interface Spawned {

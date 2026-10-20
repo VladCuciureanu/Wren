@@ -9,7 +9,7 @@ const LAYER_FILES: Record<keyof Mood, string> = {
   rain: "rain.ogg",
   hum: "hum.ogg",
   chime: "chime.ogg",
-  static_: "static.ogg",
+  static: "static.ogg",
 };
 
 export interface AudioEngine {
