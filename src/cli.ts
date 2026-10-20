@@ -88,10 +88,10 @@ export const HELP_TEXT = `wren — ambient sound from your CI pipeline
 
 USAGE:
   wren [OPTIONS]
-  wren init
+  wren init [-c <path>]
 
 COMMANDS:
-  init          Generate a default config file
+  init          Generate a default config file (at --config, if given)
 
 OPTIONS:
   -c, --config <path>   Path to config.toml (default: ~/.config/wren/config.toml)

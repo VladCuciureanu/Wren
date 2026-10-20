@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -51,4 +51,20 @@ test("main: a --config file that does not exist is an error", (t) => {
 
   assert.equal(result.status, 1);
   assert.equal(result.stderr, `Error: Config file not found: ${configPath}\n`);
+});
+
+test("main: `wren init --config <path>` writes the config there", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "wren-main-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const configPath = join(dir, "custom.toml");
+
+  const result = spawnSync(process.execPath, [mainPath, "init", "--config", configPath], {
+    encoding: "utf8",
+    timeout: 10_000,
+    env: { ...process.env, XDG_CONFIG_HOME: join(dir, "xdg") },
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(readFileSync(configPath, "utf8"), /^\[general\]$/m);
+  assert.equal(existsSync(join(dir, "xdg")), false);
 });

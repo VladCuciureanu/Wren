@@ -44,3 +44,13 @@ test("runInit: throws instead of overwriting an existing config", async (t) => {
   });
   assert.equal(await readFile(configPath, "utf8"), "# mine\n");
 });
+
+test("runInit: writes to an explicit path, creating its directory", async (t) => {
+  const tmpDir = await tempXdg(t);
+  const configPath = join(tmpDir, "elsewhere", "wren.toml");
+
+  await runInit(configPath);
+
+  assert.match(await readFile(configPath, "utf8"), /^\[general\]$/m);
+  await assert.rejects(readFile(join(tmpDir, "wren", "config.toml")), { code: "ENOENT" });
+});

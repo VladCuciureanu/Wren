@@ -27,7 +27,7 @@ async function main() {
     process.exit(0);
   }
   if (args.init) {
-    await runInit();
+    await runInit(args.config);
     return;
   }
 
