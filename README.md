@@ -117,3 +117,7 @@ npm run dev         # run src/main.ts, restarting on changes
 ```
 
 `scripts/generate-assets.sh` regenerates the forest theme with `ffmpeg`; run it from the repo root.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
