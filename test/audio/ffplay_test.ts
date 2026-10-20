@@ -38,6 +38,11 @@ function fakeSpawn() {
   return { spawned, spawn };
 }
 
+/** Read through a call so TypeScript doesn't keep an earlier narrowing of the getter. */
+function audioMessage(engine: FfplayEngine): string {
+  return engine.audioError?.message ?? "";
+}
+
 test("checkFfplay: returns false when the binary is missing", async () => {
   assert.equal(await checkFfplay("wren-definitely-missing-binary"), false);
 });
@@ -78,7 +83,7 @@ test("Crossfader + FfplayEngine: a mood change restarts each layer at most once"
   );
 });
 
-test("FfplayEngine: a spawn error drops the layer and is reported once", () => {
+test("FfplayEngine: a spawn error drops the layer and is reported once per failure episode", () => {
   const { spawned, spawn } = fakeSpawn();
   const errors: Error[] = [];
   const engine = new FfplayEngine("assets", 100, spawn, (e) => errors.push(e));
@@ -94,6 +99,78 @@ test("FfplayEngine: a spawn error drops the layer and is reported once", () => {
   assert.equal(spawned.length, 4);
   for (const s of spawned.slice(2)) s.proc.emit("error", enoent);
   assert.equal(errors.length, 1);
+});
+
+test("FfplayEngine: audioError persists while ffplay keeps failing and clears once layers spawn", () => {
+  const { spawned, spawn } = fakeSpawn();
+  const engine = new FfplayEngine("assets", 100, spawn, () => {});
+  assert.equal(engine.audioError, undefined);
+
+  engine.start(calm);
+  for (const s of spawned) s.proc.emit("error", new Error("spawn ffplay ENOENT"));
+  for (let i = 0; i < 3; i++) {
+    engine.update(calm);
+    for (const s of spawned.slice(-2)) s.proc.emit("error", new Error("spawn ffplay ENOENT"));
+    assert.match(audioMessage(engine), /ENOENT/);
+  }
+
+  engine.update(calm);
+  const [birdsong, wind] = spawned.slice(-2);
+  birdsong.proc.emit("spawn");
+  assert.match(audioMessage(engine), /ENOENT/, "wind is still failing");
+  wind.proc.emit("spawn");
+  assert.equal(engine.audioError, undefined);
+});
+
+test("FfplayEngine: a new failure after recovery is reported again", () => {
+  const { spawned, spawn } = fakeSpawn();
+  const errors: Error[] = [];
+  const engine = new FfplayEngine("assets", 100, spawn, (e) => errors.push(e));
+  engine.start(calm);
+  spawned[0].proc.emit("error", new Error("first"));
+  engine.update(calm);
+  spawned.at(-1)?.proc.emit("spawn");
+  assert.equal(engine.audioError, undefined);
+
+  spawned[1].proc.emit("error", new Error("second"));
+  assert.deepEqual(errors.map((e) => e.message), ["first", "second"]);
+});
+
+test("FfplayEngine: an unexpected ffplay exit is a failure and the layer respawns", () => {
+  const { spawned, spawn } = fakeSpawn();
+  const errors: Error[] = [];
+  const engine = new FfplayEngine("assets", 100, spawn, (e) => errors.push(e));
+  engine.start(calm);
+  spawned[0].proc.emit("spawn");
+  spawned[0].proc.emit("exit", 1, null);
+
+  assert.match(audioMessage(engine), /birdsong\.ogg \(exit code 1\)/);
+  assert.equal(errors.length, 1);
+  engine.update(calm);
+  assert.equal(spawned.at(-1)?.file, "assets/birdsong.ogg");
+});
+
+test("FfplayEngine: exits of layers we killed are not failures", () => {
+  const { spawned, spawn } = fakeSpawn();
+  const errors: Error[] = [];
+  const engine = new FfplayEngine("assets", 100, spawn, (e) => errors.push(e));
+  engine.start(calm);
+  engine.update({ ...calm, wind: 0.5 }); // wind restarted
+  spawned[1].proc.emit("exit", null, "SIGTERM");
+  engine.stop();
+  for (const s of spawned) s.proc.emit("exit", null, "SIGTERM");
+  assert.equal(engine.audioError, undefined);
+  assert.equal(errors.length, 0);
+});
+
+test("FfplayEngine: silencing a failing layer clears its failure", () => {
+  const { spawned, spawn } = fakeSpawn();
+  const engine = new FfplayEngine("assets", 100, spawn, () => {});
+  engine.start(calm);
+  spawned[1].proc.emit("error", new Error("wind broke"));
+  assert.ok(engine.audioError);
+  engine.update({ ...calm, wind: 0 });
+  assert.equal(engine.audioError, undefined);
 });
 
 test("FfplayEngine: an error from an already replaced process does not drop the new layer", () => {

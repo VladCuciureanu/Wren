@@ -22,7 +22,11 @@ export interface AudioEngine {
 /** Subset of `child_process.spawn` the engine uses; injectable for tests. */
 export type SpawnFn = (command: string, args: readonly string[], options: SpawnOptions) => ChildProcess;
 
-/** Receives the first ffplay failure an engine sees (later ones are not repeated). */
+/**
+ * Receives the failure that takes the engine from healthy to failing. Further
+ * failures in the same episode are not repeated; once every layer recovers, the
+ * next failure is reported again.
+ */
 export type AudioErrorHandler = (error: Error) => void;
 
 const defaultErrorHandler: AudioErrorHandler = (e) => {
@@ -45,7 +49,8 @@ export class FfplayEngine implements AudioEngine {
   #currentMood: Mood | null = null;
   #spawn: SpawnFn;
   #onError: AudioErrorHandler;
-  #errorReported = false;
+  /** Layers whose last ffplay process failed, with the failure. */
+  #failures = new Map<keyof Mood, Error>();
 
   constructor(
     assetsDir: string,
@@ -101,6 +106,11 @@ export class FfplayEngine implements AudioEngine {
     }
   }
 
+  /** A current ffplay failure, or undefined while every layer is healthy. */
+  get audioError(): Error | undefined {
+    return this.#failures.values().next().value;
+  }
+
   #spawnLayer(key: keyof Mood, layerVolume: number): void {
     const file = `${this.#assetsDir}/${LAYER_FILES[key]}`;
     const effectiveVol = this.#effectiveVolume(layerVolume);
@@ -113,25 +123,38 @@ export class FfplayEngine implements AudioEngine {
         { stdio: ["inherit", "ignore", "ignore"] },
       );
     } catch (e) {
-      this.#reportError(e);
+      this.#fail(key, e);
       return;
     }
+    // Events from a process that no longer backs its layer (killed or
+    // replaced) are ignored.
+    const current = () => this.#processes.get(key)?.proc === proc;
+    proc.on("spawn", () => {
+      if (current()) this.#failures.delete(key);
+    });
     // Without a listener, a failed spawn (e.g. ENOENT) is an uncaught
     // exception that kills Node and orphans the other layers.
     proc.on("error", (e) => {
-      // Only drop the layer if this process still backs it; a restarted
-      // layer has already replaced it.
-      if (this.#processes.get(key)?.proc === proc) this.#processes.delete(key);
-      this.#reportError(e);
+      if (!current()) return;
+      this.#processes.delete(key);
+      this.#fail(key, e);
+    });
+    // Layers loop forever, so any exit we didn't cause (bad file, crash) is a failure.
+    proc.on("exit", (code, signal) => {
+      if (!current()) return;
+      this.#processes.delete(key);
+      this.#fail(key, new Error(`ffplay stopped playing ${LAYER_FILES[key]} (${signal ?? `exit code ${code}`})`));
     });
     this.#processes.set(key, { proc, volume: effectiveVol });
   }
 
-  #reportError(e: unknown): void {
-    if (this.#errorReported) return;
-    this.#errorReported = true;
+  #fail(key: keyof Mood, e: unknown): void {
+    const error = e instanceof Error ? e : new Error(String(e));
+    const wasHealthy = this.#failures.size === 0;
+    this.#failures.set(key, error);
+    if (!wasHealthy) return;
     try {
-      this.#onError(e instanceof Error ? e : new Error(String(e)));
+      this.#onError(error);
     } catch {
       // A failing reporter must not take the audio engine down with it.
     }
@@ -151,5 +174,7 @@ export class FfplayEngine implements AudioEngine {
       }
       this.#processes.delete(key);
     }
+    // A layer that is meant to be silent can't be failing.
+    this.#failures.delete(key);
   }
 }
