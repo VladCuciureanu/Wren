@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   type AudioHealth,
+  applyVolumeKey,
   createUpdateHandler,
   currentNotice,
   missingTokenWarning,
@@ -83,4 +84,27 @@ test("currentNotice: the standing warning shows only while nothing is failing", 
   assert.equal(currentNotice(view, { audioError: new Error("x") }), "Audio error: x");
   view.updateError = "Update failed: boom";
   assert.equal(currentNotice(view, healthy), "Update failed: boom");
+});
+
+test("applyVolumeKey: m toggles mute; + and - step the volume within 0-100 and unmute", () => {
+  const view: ViewState = { statuses: [], volume: 80, muted: false };
+  applyVolumeKey(view, "mute");
+  assert.equal(view.muted, true);
+  applyVolumeKey(view, "mute");
+  assert.equal(view.muted, false);
+
+  view.muted = true;
+  applyVolumeKey(view, "volume_down");
+  assert.deepEqual([view.volume, view.muted], [75, false]);
+
+  view.muted = true;
+  applyVolumeKey(view, "volume_up");
+  assert.deepEqual([view.volume, view.muted], [80, false]);
+
+  view.volume = 98;
+  applyVolumeKey(view, "volume_up");
+  assert.equal(view.volume, 100);
+  view.volume = 3;
+  applyVolumeKey(view, "volume_down");
+  assert.equal(view.volume, 0);
 });

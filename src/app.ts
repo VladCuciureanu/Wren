@@ -1,4 +1,5 @@
 import type { RepoStatus } from "./ingestion.ts";
+import type { KeyAction } from "./keys.ts";
 import { calculateMood, type Mood } from "./state.ts";
 
 /** What the TUI shows, besides the mood. */
@@ -58,4 +59,15 @@ export function createUpdateHandler(
     crossfader.transitionTo(mood);
     redraw(mood);
   };
+}
+
+/** Apply a mute or volume key to the view. Changing the volume also unmutes. */
+export function applyVolumeKey(view: ViewState, action: Exclude<KeyAction, "quit">): void {
+  if (action === "mute") {
+    view.muted = !view.muted;
+    return;
+  }
+  const step = action === "volume_up" ? 5 : -5;
+  view.volume = Math.max(0, Math.min(100, view.volume + step));
+  view.muted = false;
 }

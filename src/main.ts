@@ -3,7 +3,13 @@
 import { readdir } from "node:fs/promises";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { createUpdateHandler, currentNotice, missingTokenWarning, type ViewState } from "./app.ts";
+import {
+  applyVolumeKey,
+  createUpdateHandler,
+  currentNotice,
+  missingTokenWarning,
+  type ViewState,
+} from "./app.ts";
 import { Crossfader } from "./audio/crossfade.ts";
 import { checkFfplay, FfplayEngine } from "./audio/ffplay.ts";
 import { HELP_TEXT, parseCli, resolveVolume, UsageError, VERSION } from "./cli.ts";
@@ -148,18 +154,9 @@ async function main() {
         if (action === "quit") {
           cleanup();
           break input;
-        } else if (action === "mute") {
-          view.muted = !view.muted;
+        } else if (action) {
+          applyVolumeKey(view, action);
           engine.setMasterVolume(view.muted ? 0 : view.volume);
-          redrawCurrent();
-        } else if (action === "volume_up") {
-          view.volume = Math.min(100, view.volume + 5);
-          view.muted = false;
-          engine.setMasterVolume(view.volume);
-          redrawCurrent();
-        } else if (action === "volume_down") {
-          view.volume = Math.max(0, view.volume - 5);
-          engine.setMasterVolume(view.volume);
           redrawCurrent();
         }
       }

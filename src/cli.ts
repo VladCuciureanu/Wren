@@ -108,5 +108,5 @@ OPTIONS:
 KEYBINDINGS (while running):
   q       Quit
   m       Toggle mute
-  +/-     Volume up/down
+  +/-     Volume up/down (unmutes)
 `;
