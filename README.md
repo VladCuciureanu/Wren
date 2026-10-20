@@ -107,11 +107,13 @@ With several repos, the layer volumes are averaged, so one failing repo darkens 
 ## Development
 
 ```sh
-npm test            # node --test
+npm test            # node --test (test/**/*.test.ts)
 npm run typecheck   # tsc
 npm run lint        # biome lint
-npm run format      # biome format --write
+npm run format      # biome check --write (format, sort imports, safe fixes)
+npm run check       # biome check, typecheck and tests, as CI runs them
 npm run build       # compile src/ to dist/ (the `wren` bin)
+npm run dev         # run src/main.ts, restarting on changes
 ```
 
 `scripts/generate-assets.sh` regenerates the forest theme with `ffmpeg`; run it from the repo root.
