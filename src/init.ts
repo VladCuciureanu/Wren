@@ -1,5 +1,4 @@
-import { mkdir, stat, writeFile } from "node:fs/promises";
-import process from "node:process";
+import { mkdir, writeFile } from "node:fs/promises";
 import { getConfigDir, getConfigPath } from "./config.ts";
 
 const DEFAULT_CONFIG_TOML = `# Wren configuration
@@ -31,24 +30,17 @@ theme = "forest"
 # # Omit token to use GITHUB_TOKEN env var
 `;
 
+/** Write the starter config; throws if a config is already there. */
 export async function runInit(): Promise<void> {
   const configPath = getConfigPath();
 
-  // Check if config already exists
-  try {
-    await stat(configPath);
-    console.error(`Config already exists at ${configPath}`);
-    console.error("Delete it first if you want to regenerate.");
-    process.exit(1);
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
-  }
-
-  // Create directory
   await mkdir(getConfigDir(), { recursive: true });
-
-  // Write config
-  await writeFile(configPath, DEFAULT_CONFIG_TOML);
+  try {
+    await writeFile(configPath, DEFAULT_CONFIG_TOML, { flag: "wx" });
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+    throw new Error(`Config already exists at ${configPath}; delete it first to regenerate it`);
+  }
   console.log(`Config written to ${configPath}`);
   console.log("Edit it to add your repos, then run `wren` to start.");
 }

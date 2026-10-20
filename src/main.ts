@@ -28,7 +28,7 @@ async function main() {
   }
   if (args.init) {
     await runInit();
-    process.exit(0);
+    return;
   }
 
   const config = await loadConfig(args.config);
