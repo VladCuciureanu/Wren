@@ -3,3 +3,4 @@ notes
 .env.*
 .herodotus.toml
 node_modules/
+dist/
