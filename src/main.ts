@@ -6,9 +6,8 @@ import { parseCli, resolveVolume, HELP_TEXT, VERSION } from "./cli.ts";
 import { loadConfig } from "./config.ts";
 import { createProvider } from "./providers/mod.ts";
 import { IngestionLoop, buildProviders } from "./ingestion.ts";
-import type { RepoStatus } from "./ingestion.ts";
-import { calculateMood } from "./state.ts";
 import type { Mood } from "./state.ts";
+import { type ViewState, createUpdateHandler } from "./app.ts";
 import { FfplayEngine, checkFfplay } from "./audio/ffplay.ts";
 import { Crossfader } from "./audio/crossfade.ts";
 import { drawTui } from "./tui.ts";
@@ -63,27 +62,19 @@ async function main() {
   const assetsDir = fileURLToPath(new URL(`../assets/${config.general.theme}`, import.meta.url));
 
   const initial = resolveVolume(args, config.general.volume);
-  let currentStatuses: RepoStatus[] = [];
-  let volume = initial.volume;
-  let muted = initial.muted;
-  let notice: string | undefined;
+  const view: ViewState = { statuses: [], volume: initial.volume, muted: initial.muted };
 
   const redraw = (mood: Mood) => {
-    drawTui({ mood, statuses: currentStatuses, volume, muted, notice });
+    drawTui({ mood, ...view });
   };
 
   const engine = new FfplayEngine(assetsDir, initial.engineVolume, undefined, (e) => {
-    notice = `Audio error: ${e.message}`;
+    view.notice = `Audio error: ${e.message}`;
     if (crossfader.currentMood) redraw(crossfader.currentMood);
   });
   const crossfader = new Crossfader(engine);
 
-  const onUpdate = (statuses: RepoStatus[]) => {
-    currentStatuses = statuses;
-    const mood = calculateMood(statuses);
-    crossfader.transitionTo(mood);
-    redraw(mood);
-  };
+  const onUpdate = createUpdateHandler(view, crossfader, redraw);
 
   const loop = new IngestionLoop(
     config.repos,
@@ -92,7 +83,7 @@ async function main() {
     onUpdate,
     (e) => {
       // Keep polling: the next tick may well succeed.
-      notice = `Update failed: ${e.message}`;
+      view.notice = `Update failed: ${e.message}`;
     },
   );
 
@@ -133,17 +124,17 @@ async function main() {
           cleanup();
           break input;
         } else if (action === "mute") {
-          muted = !muted;
-          engine.setMasterVolume(muted ? 0 : volume);
+          view.muted = !view.muted;
+          engine.setMasterVolume(view.muted ? 0 : view.volume);
           if (crossfader.currentMood) redraw(crossfader.currentMood);
         } else if (action === "volume_up") {
-          volume = Math.min(100, volume + 5);
-          muted = false;
-          engine.setMasterVolume(volume);
+          view.volume = Math.min(100, view.volume + 5);
+          view.muted = false;
+          engine.setMasterVolume(view.volume);
           if (crossfader.currentMood) redraw(crossfader.currentMood);
         } else if (action === "volume_down") {
-          volume = Math.max(0, volume - 5);
-          engine.setMasterVolume(volume);
+          view.volume = Math.max(0, view.volume - 5);
+          engine.setMasterVolume(view.volume);
           if (crossfader.currentMood) redraw(crossfader.currentMood);
         }
       }
