@@ -90,3 +90,7 @@ test("parseCli: rejects a --volume that is not a number from 0 to 100", () => {
   assert.equal(parseCli(["--volume", "0"]).volume, 0);
   assert.equal(parseCli(["--volume", "100"]).volume, 100);
 });
+
+test("parseCli: init is a command, not a flag", () => {
+  assert.throws(() => parseCli(["--init"]), { message: "unknown option '--init'" });
+});

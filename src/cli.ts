@@ -46,7 +46,7 @@ export function parseCli(args: string[]): CliArgs {
     mute: values.mute,
     help: values.help,
     version: values.version,
-    init: command === "init" || values.init,
+    init: command === "init",
   };
 }
 
@@ -59,7 +59,6 @@ function parseOptions(args: string[]) {
       mute: { type: "boolean", short: "m", default: false },
       help: { type: "boolean", short: "h", default: false },
       version: { type: "boolean", short: "v", default: false },
-      init: { type: "boolean", default: false },
     },
     strict: true,
     allowPositionals: true,
