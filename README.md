@@ -41,7 +41,7 @@ Without `npm link`, run `npm start` (or `npm start -- init`) from the repo.
 ## Usage
 
 ```sh
-wren init                       # write a starter config
+wren init                       # write a starter config (repos commented out)
 $EDITOR ~/.config/wren/config.toml
 wren
 ```
@@ -94,7 +94,7 @@ For each repo, Wren reads the latest 50 workflow runs on the default branch and 
 | State | When | Layers |
 |-------|------|--------|
 | Deploy failed | a deploy failed | heavy thunder, rain, wind |
-| Failing | any other run failed | thunder, wind, rain |
+| Failing | any other run failed | wind, thunder, rain |
 | Error | a run ended with another conclusion, e.g. timed out | heavy thunder and rain |
 | Deploying | a deploy is running | low hum, some birdsong |
 | Pending | a run is queued, or a non-deploy run is in progress | wind, a little birdsong and hum |
