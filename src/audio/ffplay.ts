@@ -19,9 +19,9 @@ export interface AudioEngine {
   stop(): void;
 }
 
-export async function checkFfplay(): Promise<boolean> {
+export async function checkFfplay(command = "ffplay"): Promise<boolean> {
   try {
-    await promisify(execFile)("ffplay", ["-version"]);
+    await promisify(execFile)(command, ["-version"]);
     return true;
   } catch {
     return false;
