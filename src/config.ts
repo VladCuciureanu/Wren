@@ -81,6 +81,11 @@ export function parseConfig(toml: string): Config {
   return { general, repos };
 }
 
+/**
+ * Load the config at `path`, or at the default path when none is given. Only
+ * a missing default config falls back to the defaults; a missing file that
+ * was asked for explicitly is an error.
+ */
 export async function loadConfig(path?: string): Promise<Config> {
   const configPath = path ?? getConfigPath();
   try {
@@ -88,6 +93,7 @@ export async function loadConfig(path?: string): Promise<Config> {
     return parseConfig(text);
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+      if (path !== undefined) throw new Error(`Config file not found: ${path}`);
       return { ...DEFAULT_CONFIG };
     }
     throw e;

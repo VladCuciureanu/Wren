@@ -38,3 +38,17 @@ test("main: an unknown option is a usage error with exit code 2", () => {
   assert.equal(result.stderr, "wren: unknown option '--frobnicate' (see 'wren --help')\n");
   assert.equal(result.stdout, "");
 });
+
+test("main: a --config file that does not exist is an error", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "wren-main-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const configPath = join(dir, "missing.toml");
+
+  const result = spawnSync(process.execPath, [mainPath, "--config", configPath], {
+    encoding: "utf8",
+    timeout: 10_000,
+  });
+
+  assert.equal(result.status, 1);
+  assert.equal(result.stderr, `Error: Config file not found: ${configPath}\n`);
+});
