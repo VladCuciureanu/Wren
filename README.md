@@ -50,7 +50,7 @@ wren
 wren [options]
 wren init [-c <path>]
 
-  -c, --config <path>   Config file (default: ~/.config/wren/config.toml)
+  -c, --config <path>   Config file (default: $XDG_CONFIG_HOME/wren/config.toml or ~/.config/wren/config.toml)
       --volume <0-100>  Starting volume (default: general.volume)
   -m, --mute            Start muted
   -v, --version         Print version

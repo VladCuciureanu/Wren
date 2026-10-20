@@ -6,7 +6,7 @@ import { createUpdateHandler, currentNotice, type ViewState } from "./app.ts";
 import { Crossfader } from "./audio/crossfade.ts";
 import { checkFfplay, FfplayEngine } from "./audio/ffplay.ts";
 import { HELP_TEXT, parseCli, resolveVolume, UsageError, VERSION } from "./cli.ts";
-import { loadConfig } from "./config.ts";
+import { getConfigPath, loadConfig } from "./config.ts";
 import { buildProviders, IngestionLoop } from "./ingestion.ts";
 import { runInit } from "./init.ts";
 import { keyAction } from "./keys.ts";
@@ -35,7 +35,7 @@ async function main() {
 
   if (config.repos.length === 0) {
     console.error("No repos configured. Run `wren init` to create a config file,");
-    console.error(`then edit ${args.config ?? "~/.config/wren/config.toml"} to add repos.`);
+    console.error(`then edit ${args.config ?? getConfigPath()} to add repos.`);
     process.exit(1);
   }
 

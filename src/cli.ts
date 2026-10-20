@@ -94,7 +94,8 @@ COMMANDS:
   init          Generate a default config file (at --config, if given)
 
 OPTIONS:
-  -c, --config <path>   Path to config.toml (default: ~/.config/wren/config.toml)
+  -c, --config <path>   Path to config.toml (default: $XDG_CONFIG_HOME/wren/config.toml,
+                        falling back to ~/.config/wren/config.toml)
   --volume <0-100>      Set volume (default: general.volume from config, 80)
   -m, --mute            Start muted
   -v, --version         Print version

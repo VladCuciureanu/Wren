@@ -68,3 +68,18 @@ test("main: `wren init --config <path>` writes the config there", (t) => {
   assert.match(readFileSync(configPath, "utf8"), /^\[general\]$/m);
   assert.equal(existsSync(join(dir, "xdg")), false);
 });
+
+test("main: the no-repos message names the config path under XDG_CONFIG_HOME", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "wren-main-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+  const result = spawnSync(process.execPath, [mainPath], {
+    encoding: "utf8",
+    timeout: 10_000,
+    env: { ...process.env, XDG_CONFIG_HOME: dir },
+  });
+
+  assert.equal(result.status, 1);
+  const configPath = join(dir, "wren", "config.toml");
+  assert.ok(result.stderr.includes(`then edit ${configPath} to add repos.`), result.stderr);
+});
