@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { createUpdateHandler, currentNotice, type ViewState } from "./app.ts";
 import { Crossfader } from "./audio/crossfade.ts";
 import { checkFfplay, FfplayEngine } from "./audio/ffplay.ts";
-import { HELP_TEXT, parseCli, resolveVolume, VERSION } from "./cli.ts";
+import { HELP_TEXT, parseCli, resolveVolume, UsageError, VERSION } from "./cli.ts";
 import { loadConfig } from "./config.ts";
 import { buildProviders, IngestionLoop } from "./ingestion.ts";
 import { runInit } from "./init.ts";
@@ -167,6 +167,11 @@ function restoreTerminal(): void {
 
 main().catch((e: unknown) => {
   restoreTerminal();
+  if (e instanceof UsageError) {
+    console.error(`wren: ${e.message} (see 'wren --help')`);
+    process.exitCode = 2;
+    return;
+  }
   console.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
   process.exitCode = 1;
 });

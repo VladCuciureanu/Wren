@@ -10,9 +10,43 @@ export interface CliArgs {
   init: boolean;
 }
 
+/** A bad command line: reported as one line on stderr with exit code 2. */
+export class UsageError extends Error {}
+
 export function parseCli(args: string[]): CliArgs {
-  // strict: false mirrors @std/cli's lenient handling of unknown flags.
-  const { values, positionals } = parseArgs({
+  let parsed: ReturnType<typeof parseOptions>;
+  try {
+    parsed = parseOptions(args);
+  } catch (e) {
+    // node:util appends advice to the first sentence; keep just the problem.
+    const message = e instanceof Error ? e.message.split(/\.\s|\n/)[0] : String(e);
+    throw new UsageError(message.charAt(0).toLowerCase() + message.slice(1));
+  }
+  const { values, positionals } = parsed;
+
+  const [command, ...extra] = positionals;
+  if (command !== undefined && command !== "init") {
+    throw new UsageError(`unknown command '${command}'`);
+  }
+  if (extra.length > 0) {
+    throw new UsageError(`unexpected argument '${extra[0]}'`);
+  }
+  if (values.config === "") {
+    throw new UsageError("option '-c, --config <path>' needs a path");
+  }
+
+  return {
+    config: values.config,
+    volume: values.volume !== undefined ? Number(values.volume) : undefined,
+    mute: values.mute,
+    help: values.help,
+    version: values.version,
+    init: command === "init" || values.init,
+  };
+}
+
+function parseOptions(args: string[]) {
+  return parseArgs({
     args,
     options: {
       config: { type: "string", short: "c" },
@@ -22,22 +56,9 @@ export function parseCli(args: string[]): CliArgs {
       version: { type: "boolean", short: "v", default: false },
       init: { type: "boolean", default: false },
     },
-    strict: false,
+    strict: true,
     allowPositionals: true,
   });
-
-  const volume = values.volume !== undefined ? Number(values.volume) : undefined;
-  // A value-less `--config` yielded "" under @std/cli; node:util yields `true`.
-  const config = values.config === true ? "" : (values.config as string | undefined);
-
-  return {
-    config,
-    volume,
-    mute: values.mute as boolean,
-    help: values.help as boolean,
-    version: values.version as boolean,
-    init: positionals[0] === "init" ? true : (values.init as boolean),
-  };
 }
 
 export interface InitialVolume {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseCli, resolveVolume } from "../src/cli.ts";
+import { parseCli, resolveVolume, UsageError } from "../src/cli.ts";
 
 test("parseCli: defaults", () => {
   const args = parseCli([]);
@@ -58,4 +58,24 @@ test("resolveVolume: --mute starts engine silent but keeps configured volume for
     muted: true,
     engineVolume: 0,
   });
+});
+
+test("parseCli: rejects unknown options", () => {
+  assert.throws(() => parseCli(["--frobnicate"]), {
+    name: "Error",
+    message: "unknown option '--frobnicate'",
+  });
+  assert.throws(() => parseCli(["-x"]), UsageError);
+  assert.throws(() => parseCli(["--mute=yes"]), UsageError);
+});
+
+test("parseCli: rejects unknown commands and extra arguments", () => {
+  assert.throws(() => parseCli(["start"]), { message: "unknown command 'start'" });
+  assert.throws(() => parseCli(["init", "now"]), { message: "unexpected argument 'now'" });
+});
+
+test("parseCli: rejects --config without a path", () => {
+  assert.throws(() => parseCli(["--config"]), UsageError);
+  assert.throws(() => parseCli(["--config", "--mute"]), UsageError);
+  assert.throws(() => parseCli(["--config="]), /needs a path/);
 });

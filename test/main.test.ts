@@ -27,3 +27,14 @@ test("main: an invalid config prints a message and exits 1 without a stack trace
   const shows = result.stdout.split("\x1b[?25h").length - 1;
   assert.ok(shows >= hides);
 });
+
+test("main: an unknown option is a usage error with exit code 2", () => {
+  const result = spawnSync(process.execPath, [mainPath, "--frobnicate"], {
+    encoding: "utf8",
+    timeout: 10_000,
+  });
+
+  assert.equal(result.status, 2);
+  assert.equal(result.stderr, "wren: unknown option '--frobnicate' (see 'wren --help')\n");
+  assert.equal(result.stdout, "");
+});
