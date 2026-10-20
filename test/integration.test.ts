@@ -20,8 +20,12 @@ test("integration: poll → mood → crossfade pipeline", async () => {
 
   const updates: Mood[] = [];
   const engine: AudioEngine = {
-    start: (mood) => { updates.push({ ...mood }); },
-    update: (mood) => { updates.push({ ...mood }); },
+    start: (mood) => {
+      updates.push({ ...mood });
+    },
+    update: (mood) => {
+      updates.push({ ...mood });
+    },
     setMasterVolume: () => {},
     stop: () => {},
   };

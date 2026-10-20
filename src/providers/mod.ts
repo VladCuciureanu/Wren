@@ -1,8 +1,8 @@
-export type { PipelineState, Provider } from "./types.ts";
 export { GitHubProvider } from "./github.ts";
+export type { PipelineState, Provider } from "./types.ts";
 
-import type { Provider } from "./types.ts";
 import { GitHubProvider } from "./github.ts";
+import type { Provider } from "./types.ts";
 
 const factories: Record<string, (token: string) => Provider> = {
   github: (token) => new GitHubProvider(token),

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { calculateMood, moodLabel } from "../src/state.ts";
 import type { RepoStatus } from "../src/ingestion.ts";
+import { calculateMood, moodLabel } from "../src/state.ts";
 
 function status(state: RepoStatus["state"]): RepoStatus {
   return { owner: "a", name: "b", state };

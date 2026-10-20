@@ -1,7 +1,7 @@
 import process from "node:process";
+import type { RepoStatus } from "./ingestion.ts";
 import type { Mood } from "./state.ts";
 import { moodLabel } from "./state.ts";
-import type { RepoStatus } from "./ingestion.ts";
 
 const STATE_ICONS: Record<string, string> = {
   passing: "ok",

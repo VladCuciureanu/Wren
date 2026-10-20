@@ -1,4 +1,4 @@
-import { type ChildProcess, type SpawnOptions, execFile, spawn } from "node:child_process";
+import { type ChildProcess, execFile, type SpawnOptions, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { MOOD_KEYS, type Mood } from "../state.ts";
 
@@ -20,7 +20,11 @@ export interface AudioEngine {
 }
 
 /** Subset of `child_process.spawn` the engine uses; injectable for tests. */
-export type SpawnFn = (command: string, args: readonly string[], options: SpawnOptions) => ChildProcess;
+export type SpawnFn = (
+  command: string,
+  args: readonly string[],
+  options: SpawnOptions,
+) => ChildProcess;
 
 /**
  * Receives the failure that takes the engine from healthy to failing. Further
@@ -199,7 +203,10 @@ export class FfplayEngine implements AudioEngine {
     proc.on("exit", (code, signal) => {
       if (!current()) return;
       this.#processes.delete(key);
-      this.#fail(key, new Error(`ffplay stopped playing ${LAYER_FILES[key]} (${signal ?? `exit code ${code}`})`));
+      this.#fail(
+        key,
+        new Error(`ffplay stopped playing ${LAYER_FILES[key]} (${signal ?? `exit code ${code}`})`),
+      );
     });
     this.#processes.set(key, { proc, volume: effectiveVol });
   }

@@ -28,7 +28,7 @@ export function parseCli(args: string[]): CliArgs {
 
   const volume = values.volume !== undefined ? Number(values.volume) : undefined;
   // A value-less `--config` yielded "" under @std/cli; node:util yields `true`.
-  const config = values.config === true ? "" : values.config as string | undefined;
+  const config = values.config === true ? "" : (values.config as string | undefined);
 
   return {
     config,
@@ -36,7 +36,7 @@ export function parseCli(args: string[]): CliArgs {
     mute: values.mute as boolean,
     help: values.help as boolean,
     version: values.version as boolean,
-    init: positionals[0] === "init" ? true : values.init as boolean,
+    init: positionals[0] === "init" ? true : (values.init as boolean),
   };
 }
 
@@ -49,7 +49,10 @@ export interface InitialVolume {
 }
 
 /** Resolve the startup volume: `--volume` overrides `general.volume`. */
-export function resolveVolume(args: Pick<CliArgs, "volume" | "mute">, configVolume: number): InitialVolume {
+export function resolveVolume(
+  args: Pick<CliArgs, "volume" | "mute">,
+  configVolume: number,
+): InitialVolume {
   const volume = args.volume ?? configVolume;
   return { volume, muted: args.mute, engineVolume: args.mute ? 0 : volume };
 }

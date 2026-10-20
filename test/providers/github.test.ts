@@ -49,10 +49,7 @@ test("mapRunsToState: failed deploy returns deploy_failed", () => {
 });
 
 test("mapRunsToState: queued returns pending", () => {
-  assert.deepEqual(
-    mapRunsToState([{ status: "queued", conclusion: null, name: "CI" }]),
-    "pending",
-  );
+  assert.deepEqual(mapRunsToState([{ status: "queued", conclusion: null, name: "CI" }]), "pending");
 });
 
 test("mapRunsToState: cancelled returns unknown", () => {
@@ -125,7 +122,9 @@ test("GitHubProvider.poll: queries runs on the repo's default branch", async () 
   const { requests, fetch } = stubFetch((url) => {
     if (url.pathname === "/repos/acme/api") return { body: { default_branch: "trunk" } };
     return {
-      body: { workflow_runs: [{ status: "completed", conclusion: "success", name: "CI", workflow_id: 1 }] },
+      body: {
+        workflow_runs: [{ status: "completed", conclusion: "success", name: "CI", workflow_id: 1 }],
+      },
     };
   });
   const provider = new GitHubProvider("tok", { fetch, now: () => NOW });
@@ -146,14 +145,18 @@ test("GitHubProvider.poll: throws on API errors", async () => {
   await assert.rejects(provider.poll("acme", "api"), /GitHub API error: 500/);
 });
 
-test("GitHubProvider.poll: a low rate limit skips the repo this tick instead of sleeping", { timeout: 2000 }, async () => {
+test("GitHubProvider.poll: a low rate limit skips the repo this tick instead of sleeping", {
+  timeout: 2000,
+}, async () => {
   const resetSeconds = String(Math.floor(NOW / 1000) + 3600);
   let remaining = "4000";
   const { requests, fetch } = stubFetch((url) => {
     const headers = { "x-ratelimit-remaining": remaining, "x-ratelimit-reset": resetSeconds };
     if (url.pathname === "/repos/acme/api") return { body: { default_branch: "main" }, headers };
     return {
-      body: { workflow_runs: [{ status: "completed", conclusion: "failure", name: "CI", workflow_id: 1 }] },
+      body: {
+        workflow_runs: [{ status: "completed", conclusion: "failure", name: "CI", workflow_id: 1 }],
+      },
       headers,
     };
   });
@@ -191,7 +194,9 @@ test("GitHubProvider.poll: polling resumes once the rate limit window has reset"
 });
 
 const failingRuns = {
-  body: { workflow_runs: [{ status: "completed", conclusion: "failure", name: "CI", workflow_id: 1 }] },
+  body: {
+    workflow_runs: [{ status: "completed", conclusion: "failure", name: "CI", workflow_id: 1 }],
+  },
 };
 
 /**
@@ -207,7 +212,13 @@ function rateLimitedAfterFirstPoll(limited: FakeRoute, clock: { now: number }) {
     return polls === 1 || recovered ? failingRuns : limited;
   });
   const provider = new GitHubProvider("tok", { fetch: stub.fetch, now: () => clock.now });
-  return { provider, requests: stub.requests, recover: () => { recovered = true; } };
+  return {
+    provider,
+    requests: stub.requests,
+    recover: () => {
+      recovered = true;
+    },
+  };
 }
 
 test("GitHubProvider.poll: a 429 keeps the last known state and honours retry-after", async () => {
@@ -268,7 +279,9 @@ test("GitHubProvider.poll: a rate-limited default-branch lookup returns unknown,
   let limited = true;
   const { requests, fetch } = stubFetch((url) => {
     if (url.pathname === "/repos/acme/api") {
-      return limited ? { status: 429, headers: { "retry-after": "10" } } : { body: { default_branch: "main" } };
+      return limited
+        ? { status: 429, headers: { "retry-after": "10" } }
+        : { body: { default_branch: "main" } };
     }
     return failingRuns;
   });
@@ -286,7 +299,10 @@ test("GitHubProvider.poll: a rate-limited default-branch lookup returns unknown,
 });
 
 test("GitHubProvider.poll: a plain 403 is still an error", async () => {
-  const { fetch } = stubFetch(() => ({ status: 403, body: { message: "Resource not accessible" } }));
+  const { fetch } = stubFetch(() => ({
+    status: 403,
+    body: { message: "Resource not accessible" },
+  }));
   const provider = new GitHubProvider("tok", { fetch, now: () => NOW });
   await assert.rejects(provider.poll("acme", "api"), /GitHub API error: 403/);
 });

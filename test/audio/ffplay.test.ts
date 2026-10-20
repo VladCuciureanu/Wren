@@ -3,11 +3,27 @@ import type { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { test } from "node:test";
 import { Crossfader } from "../../src/audio/crossfade.ts";
-import { FfplayEngine, checkFfplay } from "../../src/audio/ffplay.ts";
+import { checkFfplay, FfplayEngine } from "../../src/audio/ffplay.ts";
 import type { Mood } from "../../src/state.ts";
 
-const calm: Mood = { birdsong: 1.0, wind: 0.2, thunder: 0.0, rain: 0.0, hum: 0.0, chime: 0.0, static_: 0.0 };
-const storm: Mood = { birdsong: 0.0, wind: 0.4, thunder: 0.8, rain: 0.7, hum: 0.0, chime: 0.0, static_: 0.0 };
+const calm: Mood = {
+  birdsong: 1.0,
+  wind: 0.2,
+  thunder: 0.0,
+  rain: 0.0,
+  hum: 0.0,
+  chime: 0.0,
+  static_: 0.0,
+};
+const storm: Mood = {
+  birdsong: 0.0,
+  wind: 0.4,
+  thunder: 0.8,
+  rain: 0.7,
+  hum: 0.0,
+  chime: 0.0,
+  static_: 0.0,
+};
 
 interface Spawned {
   file: string;
@@ -101,7 +117,13 @@ test("FfplayEngine: start spawns one looping process per audible layer", () => {
   const { spawned, spawn } = fakeSpawn();
   const engine = new FfplayEngine("assets", 50, spawn);
   engine.start(calm);
-  assert.deepEqual(spawned.map((s) => [s.file, s.volume]), [["assets/birdsong.ogg", 50], ["assets/wind.ogg", 10]]);
+  assert.deepEqual(
+    spawned.map((s) => [s.file, s.volume]),
+    [
+      ["assets/birdsong.ogg", 50],
+      ["assets/wind.ogg", 10],
+    ],
+  );
 });
 
 test("FfplayEngine: update only restarts layers whose volume changed", () => {
@@ -110,12 +132,15 @@ test("FfplayEngine: update only restarts layers whose volume changed", () => {
   engine.start(calm);
   engine.update({ ...calm, wind: 0.5, rain: 0.3 });
   // birdsong unchanged: keeps looping. wind restarted, rain added.
-  assert.deepEqual(spawned.map((s) => [s.file, s.volume, s.killed]), [
-    ["assets/birdsong.ogg", 100, false],
-    ["assets/wind.ogg", 20, true],
-    ["assets/wind.ogg", 50, false],
-    ["assets/rain.ogg", 30, false],
-  ]);
+  assert.deepEqual(
+    spawned.map((s) => [s.file, s.volume, s.killed]),
+    [
+      ["assets/birdsong.ogg", 100, false],
+      ["assets/wind.ogg", 20, true],
+      ["assets/wind.ogg", 50, false],
+      ["assets/rain.ogg", 30, false],
+    ],
+  );
 });
 
 test("Crossfader + FfplayEngine: a mood change restarts each layer at most once", async () => {
@@ -129,7 +154,11 @@ test("Crossfader + FfplayEngine: a mood change restarts each layer at most once"
   assert.equal(spawned.length - 2, 3);
   assert.deepEqual(
     spawned.filter((s) => !s.killed).map((s) => [s.file, s.volume]),
-    [["assets/wind.ogg", 40], ["assets/thunder.ogg", 80], ["assets/rain.ogg", 70]],
+    [
+      ["assets/wind.ogg", 40],
+      ["assets/thunder.ogg", 80],
+      ["assets/rain.ogg", 70],
+    ],
   );
 });
 
@@ -186,7 +215,10 @@ test("FfplayEngine: a new failure after recovery is reported again", () => {
   assert.equal(engine.audioError, undefined);
 
   spawned[1].proc.emit("error", new Error("second"));
-  assert.deepEqual(errors.map((e) => e.message), ["first", "second"]);
+  assert.deepEqual(
+    errors.map((e) => e.message),
+    ["first", "second"],
+  );
 });
 
 test("FfplayEngine: a failed layer is retried with a doubling, capped delay", () => {
@@ -252,7 +284,10 @@ test("FfplayEngine: no retry for a layer that was silenced or after stop", () =>
   spawned[1].proc.emit("error", new Error("wind broke"));
   engine.update({ ...calm, birdsong: 0 }); // birdsong silenced, wind still waiting to retry
   clock.advance(1_000);
-  assert.deepEqual(spawned.slice(2).map((s) => s.file), ["assets/wind.ogg"]);
+  assert.deepEqual(
+    spawned.slice(2).map((s) => s.file),
+    ["assets/wind.ogg"],
+  );
   engine.stop();
   clock.advance(60_000);
   assert.equal(spawned.length, 3);

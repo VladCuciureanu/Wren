@@ -45,7 +45,7 @@ export function parseConfig(toml: string): Config {
 
   const general = {
     ...DEFAULT_CONFIG.general,
-    ...(raw.general as Record<string, unknown> ?? {}),
+    ...((raw.general as Record<string, unknown>) ?? {}),
   };
 
   if (typeof general.poll_interval !== "number" || general.poll_interval < 10) {
