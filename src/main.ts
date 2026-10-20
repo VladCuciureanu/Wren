@@ -11,7 +11,6 @@ import { getConfigPath, loadConfig } from "./config.ts";
 import { buildProviders, IngestionLoop } from "./ingestion.ts";
 import { runInit } from "./init.ts";
 import { keyAction } from "./keys.ts";
-import { createProvider } from "./providers/mod.ts";
 import { onceOnExit } from "./shutdown.ts";
 import type { Mood } from "./state.ts";
 import { drawTui } from "./tui.ts";
@@ -68,7 +67,7 @@ async function main() {
 
   // Build providers (group by provider+token to share instances)
   const envToken = process.env.GITHUB_TOKEN;
-  const providers = buildProviders(config.repos, envToken ?? "", createProvider);
+  const providers = buildProviders(config.repos, envToken ?? "");
 
   // Resolve assets dir
   const assetsDir = fileURLToPath(new URL(`../assets/${config.general.theme}`, import.meta.url));

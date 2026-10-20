@@ -2,7 +2,6 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import process from "node:process";
 import { parse as parseToml } from "smol-toml";
-import { providerNames } from "./providers/mod.ts";
 
 export interface RepoConfig {
   owner: string;
@@ -72,9 +71,10 @@ export function parseConfig(toml: string): Config {
     if (typeof r.name !== "string" || r.name.length === 0) {
       throw new Error(`repos[${i}].name must be a non-empty string`);
     }
+    // GitHub is the only provider; the key exists so configs can say so.
     const provider = r.provider ?? "github";
-    if (typeof provider !== "string" || !providerNames().includes(provider)) {
-      throw new Error(`repos[${i}].provider must be one of: ${providerNames().join(", ")}`);
+    if (provider !== "github") {
+      throw new Error(`repos[${i}].provider must be one of: github`);
     }
     if (r.token !== undefined && (typeof r.token !== "string" || r.token.length === 0)) {
       throw new Error(`repos[${i}].token must be a non-empty string`);
