@@ -14,6 +14,7 @@ import { Crossfader } from "./audio/crossfade.ts";
 import { drawTui } from "./tui.ts";
 import { runInit } from "./init.ts";
 import { keyAction } from "./keys.ts";
+import { onceOnExit } from "./shutdown.ts";
 
 async function main() {
   const args = parseCli(process.argv.slice(2));
@@ -95,11 +96,18 @@ async function main() {
     },
   );
 
-  // Graceful shutdown
-  const cleanup = () => {
+  // Stop polling, kill every ffplay layer and restore the terminal. Runs once:
+  // from the graceful paths below or, as a last resort, on any other exit
+  // (e.g. an uncaught exception), so ffplay is never orphaned.
+  const shutdown = onceOnExit(() => {
     loop.stop();
     crossfader.stop();
     restoreTerminal();
+  });
+
+  // Graceful shutdown
+  const cleanup = () => {
+    shutdown();
     process.exit(0);
   };
 
@@ -142,8 +150,7 @@ async function main() {
     }
   } catch (e) {
     // Don't leave the poller or ffplay processes running behind an error.
-    loop.stop();
-    crossfader.stop();
+    shutdown();
     throw e;
   }
 }
