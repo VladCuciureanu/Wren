@@ -3,7 +3,7 @@
 import { readdir } from "node:fs/promises";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { createUpdateHandler, currentNotice, type ViewState } from "./app.ts";
+import { createUpdateHandler, currentNotice, missingTokenWarning, type ViewState } from "./app.ts";
 import { Crossfader } from "./audio/crossfade.ts";
 import { checkFfplay, FfplayEngine } from "./audio/ffplay.ts";
 import { HELP_TEXT, parseCli, resolveVolume, UsageError, VERSION } from "./cli.ts";
@@ -67,13 +67,19 @@ async function main() {
   }
 
   // Build providers (group by provider+token to share instances)
-  const providers = buildProviders(config.repos, process.env.GITHUB_TOKEN ?? "", createProvider);
+  const envToken = process.env.GITHUB_TOKEN;
+  const providers = buildProviders(config.repos, envToken ?? "", createProvider);
 
   // Resolve assets dir
   const assetsDir = fileURLToPath(new URL(`../assets/${config.general.theme}`, import.meta.url));
 
   const initial = resolveVolume(args, config.general.volume);
-  const view: ViewState = { statuses: [], volume: initial.volume, muted: initial.muted };
+  const view: ViewState = {
+    statuses: [],
+    volume: initial.volume,
+    muted: initial.muted,
+    warning: missingTokenWarning(config.repos, envToken),
+  };
 
   const redraw = (mood: Mood) => {
     drawTui({ mood, ...view, notice: currentNotice(view, engine) });

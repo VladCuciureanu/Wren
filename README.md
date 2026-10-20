@@ -84,7 +84,7 @@ name = "another-repo"
 
 | Environment variable | Purpose |
 |----------------------|---------|
-| `GITHUB_TOKEN` | Token for repos without their own `token` |
+| `GITHUB_TOKEN` | Token for repos without their own `token`. If it is unset, those repos are polled unauthenticated (60 requests an hour) and Wren shows a warning |
 | `XDG_CONFIG_HOME` | Base directory for the config file |
 
 ## How it sounds

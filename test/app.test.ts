@@ -4,6 +4,7 @@ import {
   type AudioHealth,
   createUpdateHandler,
   currentNotice,
+  missingTokenWarning,
   type ViewState,
 } from "../src/app.ts";
 import type { RepoStatus } from "../src/ingestion.ts";
@@ -66,4 +67,20 @@ test("currentNotice: an update failure takes precedence over an audio failure", 
     updateError: "Update failed: boom",
   };
   assert.equal(currentNotice(view, { audioError: new Error("x") }), "Update failed: boom");
+});
+
+test("missingTokenWarning: only when a repo relies on an unset GITHUB_TOKEN", () => {
+  const withToken = { token: "ghp_x" };
+  assert.match(missingTokenWarning([withToken, {}], undefined) ?? "", /GITHUB_TOKEN is not set/);
+  assert.match(missingTokenWarning([{}], "") ?? "", /unauthenticated/);
+  assert.equal(missingTokenWarning([{}], "ghp_env"), undefined);
+  assert.equal(missingTokenWarning([withToken], undefined), undefined);
+});
+
+test("currentNotice: the standing warning shows only while nothing is failing", () => {
+  const view: ViewState = { statuses: [], volume: 80, muted: false, warning: "no token" };
+  assert.equal(currentNotice(view, healthy), "no token");
+  assert.equal(currentNotice(view, { audioError: new Error("x") }), "Audio error: x");
+  view.updateError = "Update failed: boom";
+  assert.equal(currentNotice(view, healthy), "Update failed: boom");
 });

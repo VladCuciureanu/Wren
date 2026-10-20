@@ -147,13 +147,13 @@ export class GitHubProvider implements Provider {
   }
 
   async #get(path: string): Promise<Response> {
-    const resp = await this.#fetch(`https://api.github.com${path}`, {
-      headers: {
-        Authorization: `Bearer ${this.#token}`,
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-    });
+    const headers: Record<string, string> = {
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    };
+    // Without a token, ask anonymously rather than with an empty bearer token.
+    if (this.#token) headers.Authorization = `Bearer ${this.#token}`;
+    const resp = await this.#fetch(`https://api.github.com${path}`, { headers });
 
     const remaining = resp.headers.get("x-ratelimit-remaining");
     if (remaining) this.#rateLimitRemaining = parseInt(remaining, 10);
