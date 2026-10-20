@@ -17,9 +17,10 @@ interface Spawned {
 }
 
 /** Fake `spawn` that records each ffplay layer instead of starting a process. */
-function fakeSpawn() {
+function fakeSpawn(onSpawn?: (file: string) => void) {
   const spawned: Spawned[] = [];
   const spawn = (_cmd: string, args: readonly string[]): ChildProcess => {
+    onSpawn?.(args[args.length - 1]);
     const proc = Object.assign(new EventEmitter(), {
       kill: () => {
         entry.killed = true;
@@ -36,6 +37,44 @@ function fakeSpawn() {
     return proc as unknown as ChildProcess;
   };
   return { spawned, spawn };
+}
+
+/** Manually advanced clock implementing the engine's Timers. */
+function fakeClock() {
+  let now = 0;
+  let nextId = 1;
+  const timers = new Map<number, { at: number; fn: () => void }>();
+  return {
+    get now() {
+      return now;
+    },
+    setTimeout(fn: () => void, ms: number): unknown {
+      const id = nextId++;
+      timers.set(id, { at: now + ms, fn });
+      return id;
+    },
+    clearTimeout(handle: unknown): void {
+      timers.delete(handle as number);
+    },
+    /** Move time forward, firing due timers in order (including ones they schedule). */
+    advance(ms: number): void {
+      const end = now + ms;
+      for (;;) {
+        let due: [number, { at: number; fn: () => void }] | undefined;
+        for (const entry of timers) {
+          if (entry[1].at <= end && (!due || entry[1].at < due[1].at)) due = entry;
+        }
+        if (!due) break;
+        timers.delete(due[0]);
+        now = due[1].at;
+        due[1].fn();
+      }
+      now = end;
+    },
+    pending(): number {
+      return timers.size;
+    },
+  };
 }
 
 /** Read through a call so TypeScript doesn't keep an earlier narrowing of the getter. */
@@ -101,9 +140,10 @@ test("FfplayEngine: a spawn error drops the layer and is reported once per failu
   assert.equal(errors.length, 1);
 });
 
-test("FfplayEngine: audioError persists while ffplay keeps failing and clears once layers spawn", () => {
+test("FfplayEngine: audioError persists while ffplay keeps failing and clears once layers keep playing", () => {
   const { spawned, spawn } = fakeSpawn();
-  const engine = new FfplayEngine("assets", 100, spawn, () => {});
+  const clock = fakeClock();
+  const engine = new FfplayEngine("assets", 100, spawn, () => {}, { timers: clock });
   assert.equal(engine.audioError, undefined);
 
   engine.start(calm);
@@ -117,23 +157,117 @@ test("FfplayEngine: audioError persists while ffplay keeps failing and clears on
   engine.update(calm);
   const [birdsong, wind] = spawned.slice(-2);
   birdsong.proc.emit("spawn");
-  assert.match(audioMessage(engine), /ENOENT/, "wind is still failing");
   wind.proc.emit("spawn");
+  assert.match(audioMessage(engine), /ENOENT/, "not healthy until the layers keep playing");
+  clock.advance(5_000);
   assert.equal(engine.audioError, undefined);
 });
 
 test("FfplayEngine: a new failure after recovery is reported again", () => {
   const { spawned, spawn } = fakeSpawn();
+  const clock = fakeClock();
   const errors: Error[] = [];
-  const engine = new FfplayEngine("assets", 100, spawn, (e) => errors.push(e));
+  const engine = new FfplayEngine("assets", 100, spawn, (e) => errors.push(e), { timers: clock });
   engine.start(calm);
   spawned[0].proc.emit("error", new Error("first"));
   engine.update(calm);
   spawned.at(-1)?.proc.emit("spawn");
+  clock.advance(5_000);
   assert.equal(engine.audioError, undefined);
 
   spawned[1].proc.emit("error", new Error("second"));
   assert.deepEqual(errors.map((e) => e.message), ["first", "second"]);
+});
+
+/** Advance the clock in small steps until another process is spawned; returns the wait. */
+function untilNextSpawn(clock: ReturnType<typeof fakeClock>, spawned: Spawned[]): number {
+  const start = clock.now;
+  const count = spawned.length;
+  while (spawned.length === count) {
+    if (clock.now - start > 120_000) throw new Error("no respawn");
+    clock.advance(100);
+  }
+  return clock.now - start;
+}
+
+test("FfplayEngine: a failed layer is retried with a doubling, capped delay", () => {
+  const clock = fakeClock();
+  const { spawned, spawn } = fakeSpawn();
+  const engine = new FfplayEngine("assets", 100, spawn, () => {}, {
+    timers: clock,
+    retry: { baseMs: 1_000, maxMs: 4_000, stableMs: 5_000 },
+  });
+  engine.start({ ...calm, wind: 0 });
+  const waits: number[] = [];
+  for (let i = 0; i < 4; i++) {
+    spawned.at(-1)?.proc.emit("error", new Error("spawn ffplay ENOENT"));
+    waits.push(untilNextSpawn(clock, spawned));
+  }
+  assert.deepEqual(waits, [1_000, 2_000, 4_000, 4_000]);
+  assert.ok(spawned.every((s) => s.file === "assets/birdsong.ogg"));
+});
+
+test("FfplayEngine: a layer that starts and dies right away keeps backing off", () => {
+  const clock = fakeClock();
+  const { spawned, spawn } = fakeSpawn();
+  const engine = new FfplayEngine("assets", 100, spawn, () => {}, { timers: clock });
+  engine.start({ ...calm, wind: 0 });
+  const waits: number[] = [];
+  for (let i = 0; i < 4; i++) {
+    const proc = spawned.at(-1)?.proc;
+    proc?.emit("spawn");
+    clock.advance(100); // corrupt file: ffplay exits almost immediately
+    proc?.emit("exit", 1, null);
+    assert.ok(engine.audioError, "still failing");
+    waits.push(untilNextSpawn(clock, spawned));
+  }
+  assert.deepEqual(waits, [1_000, 2_000, 4_000, 8_000]);
+});
+
+test("FfplayEngine: a layer that stays up resets the backoff", () => {
+  const clock = fakeClock();
+  const log: { file: string; at: number }[] = [];
+  const { spawned, spawn } = fakeSpawn((file) => log.push({ file, at: clock.now }));
+  const engine = new FfplayEngine("assets", 100, spawn, () => {}, { timers: clock });
+  engine.start({ ...calm, wind: 0 });
+  spawned.at(-1)?.proc.emit("error", new Error("a"));
+  clock.advance(1_000); // retry #1
+  spawned.at(-1)?.proc.emit("error", new Error("b"));
+  clock.advance(2_000); // retry #2
+  spawned.at(-1)?.proc.emit("spawn");
+  clock.advance(5_000); // stable: healthy again
+  assert.equal(engine.audioError, undefined);
+
+  const before = log.length;
+  spawned.at(-1)?.proc.emit("exit", 1, null);
+  clock.advance(1_000);
+  assert.equal(log.length, before + 1, "retried after the base delay again");
+});
+
+test("FfplayEngine: no retry for a layer that was silenced or after stop", () => {
+  const clock = fakeClock();
+  const { spawned, spawn } = fakeSpawn();
+  const engine = new FfplayEngine("assets", 100, spawn, () => {}, { timers: clock });
+  engine.start(calm);
+  spawned[0].proc.emit("error", new Error("birdsong broke"));
+  spawned[1].proc.emit("error", new Error("wind broke"));
+  engine.update({ ...calm, birdsong: 0, wind: 0.2 }); // wind respawned now, birdsong silenced
+  assert.equal(spawned.length, 3);
+  engine.stop();
+  clock.advance(60_000);
+  assert.equal(spawned.length, 3);
+  assert.equal(clock.pending(), 0);
+});
+
+test("FfplayEngine: an update during a pending retry spawns once, not twice", () => {
+  const clock = fakeClock();
+  const { spawned, spawn } = fakeSpawn();
+  const engine = new FfplayEngine("assets", 100, spawn, () => {}, { timers: clock });
+  engine.start({ ...calm, wind: 0 });
+  spawned[0].proc.emit("error", new Error("x"));
+  engine.update({ ...calm, wind: 0 }); // respawns birdsong immediately
+  clock.advance(60_000);
+  assert.equal(spawned.length, 2);
 });
 
 test("FfplayEngine: an unexpected ffplay exit is a failure and the layer respawns", () => {

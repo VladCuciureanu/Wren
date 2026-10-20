@@ -29,6 +29,33 @@ export type SpawnFn = (command: string, args: readonly string[], options: SpawnO
  */
 export type AudioErrorHandler = (error: Error) => void;
 
+/** Timer functions the engine schedules retries with; injectable for tests. */
+export interface Timers {
+  setTimeout(fn: () => void, ms: number): unknown;
+  clearTimeout(handle: unknown): void;
+}
+
+export interface RetryOptions {
+  /** Delay before the first retry of a failed layer. */
+  baseMs: number;
+  /** Upper bound for the doubling delay. */
+  maxMs: number;
+  /** How long a process must keep playing before its layer counts as healthy again. */
+  stableMs: number;
+}
+
+export interface EngineOptions {
+  timers?: Timers;
+  retry?: Partial<RetryOptions>;
+}
+
+const DEFAULT_RETRY: RetryOptions = { baseMs: 1_000, maxMs: 60_000, stableMs: 5_000 };
+
+const realTimers: Timers = {
+  setTimeout: (fn, ms) => setTimeout(fn, ms).unref(),
+  clearTimeout: (handle) => clearTimeout(handle as NodeJS.Timeout),
+};
+
 const defaultErrorHandler: AudioErrorHandler = (e) => {
   console.error(`Audio error: ${e.message}`);
 };
@@ -51,17 +78,27 @@ export class FfplayEngine implements AudioEngine {
   #onError: AudioErrorHandler;
   /** Layers whose last ffplay process failed, with the failure. */
   #failures = new Map<keyof Mood, Error>();
+  /** Consecutive failures per layer; drives the retry backoff. */
+  #attempts = new Map<keyof Mood, number>();
+  /** Pending retry and stability timers per layer. */
+  #retryTimers = new Map<keyof Mood, unknown>();
+  #stableTimers = new Map<keyof Mood, unknown>();
+  #timers: Timers;
+  #retry: RetryOptions;
 
   constructor(
     assetsDir: string,
     masterVolume = 80,
     spawnFn: SpawnFn = spawn,
     onError: AudioErrorHandler = defaultErrorHandler,
+    options: EngineOptions = {},
   ) {
     this.#assetsDir = assetsDir;
     this.#masterVolume = masterVolume;
     this.#spawn = spawnFn;
     this.#onError = onError;
+    this.#timers = options.timers ?? realTimers;
+    this.#retry = { ...DEFAULT_RETRY, ...options.retry };
   }
 
   start(mood: Mood): void {
@@ -112,6 +149,8 @@ export class FfplayEngine implements AudioEngine {
   }
 
   #spawnLayer(key: keyof Mood, layerVolume: number): void {
+    // A spawn (from an update or a retry) supersedes any pending retry.
+    this.#cancelTimer(this.#retryTimers, key);
     const file = `${this.#assetsDir}/${LAYER_FILES[key]}`;
     const effectiveVol = this.#effectiveVolume(layerVolume);
 
@@ -129,8 +168,21 @@ export class FfplayEngine implements AudioEngine {
     // Events from a process that no longer backs its layer (killed or
     // replaced) are ignored.
     const current = () => this.#processes.get(key)?.proc === proc;
+    // A layer is healthy again only once its process has kept playing for a
+    // while; one that starts and dies right away (e.g. a corrupt file) stays
+    // failing and keeps backing off instead of retrying every second.
     proc.on("spawn", () => {
-      if (current()) this.#failures.delete(key);
+      if (!current()) return;
+      this.#cancelTimer(this.#stableTimers, key);
+      this.#stableTimers.set(
+        key,
+        this.#timers.setTimeout(() => {
+          this.#stableTimers.delete(key);
+          if (!current()) return;
+          this.#failures.delete(key);
+          this.#attempts.delete(key);
+        }, this.#retry.stableMs),
+      );
     });
     // Without a listener, a failed spawn (e.g. ENOENT) is an uncaught
     // exception that kills Node and orphans the other layers.
@@ -152,12 +204,37 @@ export class FfplayEngine implements AudioEngine {
     const error = e instanceof Error ? e : new Error(String(e));
     const wasHealthy = this.#failures.size === 0;
     this.#failures.set(key, error);
+    this.#cancelTimer(this.#stableTimers, key);
+    this.#scheduleRetry(key);
     if (!wasHealthy) return;
     try {
       this.#onError(error);
     } catch {
       // A failing reporter must not take the audio engine down with it.
     }
+  }
+
+  /** Respawn a failed layer after a doubling delay, if it should still be playing. */
+  #scheduleRetry(key: keyof Mood): void {
+    const attempt = this.#attempts.get(key) ?? 0;
+    this.#attempts.set(key, attempt + 1);
+    const delay = Math.min(this.#retry.maxMs, this.#retry.baseMs * 2 ** attempt);
+    this.#cancelTimer(this.#retryTimers, key);
+    this.#retryTimers.set(
+      key,
+      this.#timers.setTimeout(() => {
+        this.#retryTimers.delete(key);
+        const vol = this.#currentMood?.[key] ?? 0;
+        if (vol > 0 && !this.#processes.has(key)) this.#spawnLayer(key, vol);
+      }, delay),
+    );
+  }
+
+  #cancelTimer(timers: Map<keyof Mood, unknown>, key: keyof Mood): void {
+    const handle = timers.get(key);
+    if (handle === undefined) return;
+    this.#timers.clearTimeout(handle);
+    timers.delete(key);
   }
 
   #effectiveVolume(layerVolume: number): number {
@@ -174,7 +251,10 @@ export class FfplayEngine implements AudioEngine {
       }
       this.#processes.delete(key);
     }
-    // A layer that is meant to be silent can't be failing.
+    // A layer that is meant to be silent can't be failing, and needs no retry.
     this.#failures.delete(key);
+    this.#attempts.delete(key);
+    this.#cancelTimer(this.#retryTimers, key);
+    this.#cancelTimer(this.#stableTimers, key);
   }
 }
