@@ -25,6 +25,20 @@ export interface GitHubProviderOptions {
 /** Below this many remaining requests, repos are skipped until the limit resets. */
 const RATE_LIMIT_FLOOR = 50;
 
+/** How long to back off from a rate limit that names no reset time (GitHub suggests a minute). */
+const DEFAULT_RATE_LIMIT_BACKOFF_MS = 60_000;
+
+/** A response GitHub sent because a primary or secondary rate limit was hit. */
+class RateLimitedError extends Error {
+  /** Epoch milliseconds before which the repo should not be polled again. */
+  readonly until: number;
+
+  constructor(until: number) {
+    super("GitHub API rate limit exceeded");
+    this.until = until;
+  }
+}
+
 export class GitHubProvider implements Provider {
   #token: string;
   #fetch: typeof fetch;
@@ -33,6 +47,8 @@ export class GitHubProvider implements Provider {
   #rateLimitReset = 0;
   #defaultBranches = new Map<string, string>();
   #lastStates = new Map<string, PipelineState>();
+  /** Repos skipped until the given epoch milliseconds after being rate-limited. */
+  #skipUntil = new Map<string, number>();
 
   constructor(token: string, options: GitHubProviderOptions = {}) {
     this.#token = token;
@@ -46,18 +62,29 @@ export class GitHubProvider implements Provider {
     // Close to the rate limit: skip this repo for this tick (keeping its last
     // known state) rather than stalling every repo until the limit resets.
     if (this.#rateLimitRemaining < RATE_LIMIT_FLOOR && this.#rateLimitReset * 1000 > this.#now()) {
-      return this.#lastStates.get(repoPath) ?? "unknown";
+      return this.#lastKnown(repoPath);
+    }
+    if ((this.#skipUntil.get(repoPath) ?? 0) > this.#now()) {
+      return this.#lastKnown(repoPath);
     }
 
-    const branch = await this.#defaultBranch(repoPath);
-    const resp = await this.#get(
-      `${repoPath}/actions/runs?branch=${encodeURIComponent(branch)}&per_page=50`,
-    );
+    let resp: Response;
+    try {
+      const branch = await this.#defaultBranch(repoPath);
+      resp = await this.#get(
+        `${repoPath}/actions/runs?branch=${encodeURIComponent(branch)}&per_page=50`,
+      );
+      await this.#throwIfRateLimited(resp);
+    } catch (e) {
+      if (!(e instanceof RateLimitedError)) throw e;
+      // A rate limit says nothing about the pipeline: keep the last known
+      // state rather than reporting an error, and back off until the reset.
+      this.#skipUntil.set(repoPath, e.until);
+      return this.#lastKnown(repoPath);
+    }
+    this.#skipUntil.delete(repoPath);
 
     if (!resp.ok) {
-      if (resp.status === 403 && this.#rateLimitRemaining === 0) {
-        return this.#lastStates.get(repoPath) ?? "unknown";
-      }
       throw new Error(`GitHub API error: ${resp.status} ${resp.statusText}`);
     }
 
@@ -72,12 +99,48 @@ export class GitHubProvider implements Provider {
     if (cached) return cached;
 
     const resp = await this.#get(repoPath);
+    await this.#throwIfRateLimited(resp);
     if (!resp.ok) {
       throw new Error(`GitHub API error: ${resp.status} ${resp.statusText}`);
     }
     const repo = await resp.json() as RepoResponse;
     this.#defaultBranches.set(repoPath, repo.default_branch);
     return repo.default_branch;
+  }
+
+  #lastKnown(repoPath: string): PipelineState {
+    return this.#lastStates.get(repoPath) ?? "unknown";
+  }
+
+  /**
+   * Throw a RateLimitedError if `resp` is a primary (403 with no requests
+   * remaining) or secondary (429, or 403 with retry-after or a "secondary rate
+   * limit" message) rate limit response.
+   */
+  async #throwIfRateLimited(resp: Response): Promise<void> {
+    if (resp.status !== 403 && resp.status !== 429) return;
+
+    const retryAfter = resp.headers.get("retry-after");
+    let limited =
+      resp.status === 429 ||
+      retryAfter !== null ||
+      resp.headers.get("x-ratelimit-remaining") === "0";
+    if (!limited) {
+      const body = await resp.clone().text().catch(() => "");
+      limited = /secondary rate limit/i.test(body);
+    }
+    if (!limited) return;
+
+    const now = this.#now();
+    const retryAt = parseRetryAfter(retryAfter, now);
+    const resetSeconds = Number(resp.headers.get("x-ratelimit-reset") ?? NaN);
+    let until = now + DEFAULT_RATE_LIMIT_BACKOFF_MS;
+    if (retryAt !== null) {
+      until = retryAt;
+    } else if (Number.isFinite(resetSeconds) && resetSeconds * 1000 > now) {
+      until = resetSeconds * 1000;
+    }
+    throw new RateLimitedError(until);
   }
 
   async #get(path: string): Promise<Response> {
@@ -96,6 +159,18 @@ export class GitHubProvider implements Provider {
 
     return resp;
   }
+}
+
+/**
+ * Epoch milliseconds a `retry-after` header asks us to wait until: either
+ * delay-seconds or an HTTP-date. Null when absent or unparseable.
+ */
+function parseRetryAfter(value: string | null, now: number): number | null {
+  if (value === null || value.trim() === "") return null;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) return seconds >= 0 ? now + seconds * 1000 : null;
+  const date = Date.parse(value);
+  return Number.isFinite(date) ? Math.max(date, now) : null;
 }
 
 /** States that win over a green run elsewhere, most severe first. */

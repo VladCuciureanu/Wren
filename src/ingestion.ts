@@ -10,6 +10,13 @@ export interface RepoStatus {
 
 export type StatusCallback = (statuses: RepoStatus[]) => void;
 
+/** Receives errors thrown while handling a tick, so one bad update can't stop polling. */
+export type TickErrorHandler = (error: Error) => void;
+
+const defaultTickErrorHandler: TickErrorHandler = (e) => {
+  console.error(`Update failed: ${e.message}`);
+};
+
 /**
  * Key identifying which provider instance serves a repo. Repos without an
  * explicit token share the provider-wide default instance (keyed by provider
@@ -40,6 +47,7 @@ export class IngestionLoop {
   #providers: Map<string, Provider>;
   #intervalMs: number;
   #callback: StatusCallback;
+  #onError: TickErrorHandler;
   #timer: ReturnType<typeof setTimeout> | undefined;
   #running = false;
 
@@ -48,11 +56,13 @@ export class IngestionLoop {
     providers: Map<string, Provider>,
     intervalMs: number,
     callback: StatusCallback,
+    onError: TickErrorHandler = defaultTickErrorHandler,
   ) {
     this.#repos = repos;
     this.#providers = providers;
     this.#intervalMs = intervalMs;
     this.#callback = callback;
+    this.#onError = onError;
   }
 
   async pollOnce(): Promise<RepoStatus[]> {
@@ -77,8 +87,16 @@ export class IngestionLoop {
     if (this.#running) return;
     this.#running = true;
     const tick = async () => {
-      const statuses = await this.pollOnce();
-      this.#callback(statuses);
+      try {
+        const statuses = await this.pollOnce();
+        if (this.#running) this.#callback(statuses);
+      } catch (e) {
+        try {
+          this.#onError(e instanceof Error ? e : new Error(String(e)));
+        } catch {
+          // Nothing left to report to; keep polling regardless.
+        }
+      }
       if (this.#running) {
         this.#timer = setTimeout(tick, this.#intervalMs);
       }

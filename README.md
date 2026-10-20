@@ -17,23 +17,28 @@ brew install node ffmpeg
 # Install Node.js 24+: https://nodejs.org/en/download
 sudo apt install ffmpeg   # Debian/Ubuntu
 
-# Then, in the repo
-npm install
+# Then install the `wren` command
+git clone https://github.com/VladCuciureanu/Wren.git
+cd Wren
+npm install   # also builds dist/ via the prepare script
+npm link      # puts `wren` on your PATH
 ```
 
 ## Quick Start
 
 ```sh
 # Generate a config file
-npm start -- init
+wren init
 
 # Edit the config to add your repos
 # (uses your default editor, or open manually)
 $EDITOR ~/.config/wren/config.toml
 
 # Run
-npm start
+wren
 ```
+
+Without `npm link`, run `npm start` (and `npm start -- init`) from the repo instead.
 
 ## Config
 
@@ -98,6 +103,9 @@ Options:
 ## Development
 
 ```sh
+# Build dist/ (the `wren` bin)
+npm run build
+
 # Run tests
 npm test
 

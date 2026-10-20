@@ -22,6 +22,13 @@ export interface AudioEngine {
 /** Subset of `child_process.spawn` the engine uses; injectable for tests. */
 export type SpawnFn = (command: string, args: readonly string[], options: SpawnOptions) => ChildProcess;
 
+/** Receives the first ffplay failure an engine sees (later ones are not repeated). */
+export type AudioErrorHandler = (error: Error) => void;
+
+const defaultErrorHandler: AudioErrorHandler = (e) => {
+  console.error(`Audio error: ${e.message}`);
+};
+
 export async function checkFfplay(command = "ffplay"): Promise<boolean> {
   try {
     await promisify(execFile)(command, ["-version"]);
@@ -37,11 +44,19 @@ export class FfplayEngine implements AudioEngine {
   #masterVolume: number;
   #currentMood: Mood | null = null;
   #spawn: SpawnFn;
+  #onError: AudioErrorHandler;
+  #errorReported = false;
 
-  constructor(assetsDir: string, masterVolume = 80, spawnFn: SpawnFn = spawn) {
+  constructor(
+    assetsDir: string,
+    masterVolume = 80,
+    spawnFn: SpawnFn = spawn,
+    onError: AudioErrorHandler = defaultErrorHandler,
+  ) {
     this.#assetsDir = assetsDir;
     this.#masterVolume = masterVolume;
     this.#spawn = spawnFn;
+    this.#onError = onError;
   }
 
   start(mood: Mood): void {
@@ -90,12 +105,36 @@ export class FfplayEngine implements AudioEngine {
     const file = `${this.#assetsDir}/${LAYER_FILES[key]}`;
     const effectiveVol = this.#effectiveVolume(layerVolume);
 
-    const proc = this.#spawn(
-      "ffplay",
-      ["-nodisp", "-loop", "0", "-volume", String(effectiveVol), "-loglevel", "quiet", file],
-      { stdio: ["inherit", "ignore", "ignore"] },
-    );
+    let proc: ChildProcess;
+    try {
+      proc = this.#spawn(
+        "ffplay",
+        ["-nodisp", "-loop", "0", "-volume", String(effectiveVol), "-loglevel", "quiet", file],
+        { stdio: ["inherit", "ignore", "ignore"] },
+      );
+    } catch (e) {
+      this.#reportError(e);
+      return;
+    }
+    // Without a listener, a failed spawn (e.g. ENOENT) is an uncaught
+    // exception that kills Node and orphans the other layers.
+    proc.on("error", (e) => {
+      // Only drop the layer if this process still backs it; a restarted
+      // layer has already replaced it.
+      if (this.#processes.get(key)?.proc === proc) this.#processes.delete(key);
+      this.#reportError(e);
+    });
     this.#processes.set(key, { proc, volume: effectiveVol });
+  }
+
+  #reportError(e: unknown): void {
+    if (this.#errorReported) return;
+    this.#errorReported = true;
+    try {
+      this.#onError(e instanceof Error ? e : new Error(String(e)));
+    } catch {
+      // A failing reporter must not take the audio engine down with it.
+    }
   }
 
   #effectiveVolume(layerVolume: number): number {
