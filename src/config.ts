@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import process from "node:process";
 import { parse as parseToml } from "smol-toml";
+import { providerNames } from "./providers/mod.ts";
 
 export interface RepoConfig {
   owner: string;
@@ -65,10 +66,14 @@ export function parseConfig(toml: string): Config {
     if (typeof r.name !== "string" || r.name.length === 0) {
       throw new Error(`repos[${i}].name must be a non-empty string`);
     }
+    const provider = r.provider ?? "github";
+    if (typeof provider !== "string" || !providerNames().includes(provider)) {
+      throw new Error(`repos[${i}].provider must be one of: ${providerNames().join(", ")}`);
+    }
     return {
       owner: r.owner as string,
       name: r.name as string,
-      provider: (r.provider as string) ?? "github",
+      provider,
       token: r.token as string | undefined,
     };
   });

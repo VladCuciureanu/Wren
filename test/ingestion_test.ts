@@ -46,15 +46,6 @@ test("IngestionLoop.pollOnce: isolates errors per repo", async () => {
   assert.deepEqual(statuses[1].error, "network error");
 });
 
-test("IngestionLoop.pollOnce: unknown provider returns unknown state", async () => {
-  const repos: RepoConfig[] = [{ owner: "a", name: "b", provider: "gitlab" }];
-  const providers = new Map<string, Provider>();
-  const loop = new IngestionLoop(repos, providers, 1000, () => {});
-  const statuses = await loop.pollOnce();
-  assert.deepEqual(statuses[0].state, "unknown");
-  assert.deepEqual(statuses[0].error, "No provider: gitlab");
-});
-
 test("IngestionLoop: start/stop calls callback", async () => {
   const repos: RepoConfig[] = [{ owner: "a", name: "b", provider: "github" }];
   const providers = new Map([["github", fakeProvider("failing")]]);

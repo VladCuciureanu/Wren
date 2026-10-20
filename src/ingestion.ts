@@ -58,11 +58,10 @@ export class IngestionLoop {
   async pollOnce(): Promise<RepoStatus[]> {
     const results = await Promise.all(
       this.#repos.map(async (repo): Promise<RepoStatus> => {
-        const provider = this.#providers.get(providerKey(repo));
-        if (!provider) {
-          return { owner: repo.owner, name: repo.name, state: "unknown", error: `No provider: ${repo.provider}` };
-        }
         try {
+          // buildProviders creates an instance for every configured repo, and
+          // parseConfig rejects unknown providers.
+          const provider = this.#providers.get(providerKey(repo)) as Provider;
           const state = await provider.poll(repo.owner, repo.name);
           return { owner: repo.owner, name: repo.name, state };
         } catch (e) {

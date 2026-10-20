@@ -84,3 +84,23 @@ owner = "acme"
 `;
   assert.throws(() => parseConfig(toml), /repos\[0\]\.name must be a non-empty string/);
 });
+
+test("parseConfig: rejects an unknown repo provider", () => {
+  const toml = `
+[[repos]]
+owner = "acme"
+name = "api"
+provider = "gitlab"
+`;
+  assert.throws(() => parseConfig(toml), /repos\[0\]\.provider must be one of: github/);
+});
+
+test("parseConfig: rejects a non-string repo provider", () => {
+  const toml = `
+[[repos]]
+owner = "acme"
+name = "api"
+provider = 3
+`;
+  assert.throws(() => parseConfig(toml), /repos\[0\]\.provider must be one of: github/);
+});
