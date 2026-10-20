@@ -1,8 +1,6 @@
 import { type ChildProcess, execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
-import type { Mood } from "../state.ts";
-
-const MOOD_KEYS: (keyof Mood)[] = ["birdsong", "wind", "thunder", "rain", "hum", "chime", "static_"];
+import { MOOD_KEYS, type Mood } from "../state.ts";
 
 const LAYER_FILES: Record<keyof Mood, string> = {
   birdsong: "birdsong.ogg",

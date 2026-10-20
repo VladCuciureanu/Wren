@@ -1,7 +1,5 @@
-import type { Mood } from "../state.ts";
+import { MOOD_KEYS, type Mood } from "../state.ts";
 import type { AudioEngine } from "./ffplay.ts";
-
-const MOOD_KEYS: (keyof Mood)[] = ["birdsong", "wind", "thunder", "rain", "hum", "chime", "static_"];
 
 export interface CrossfadeOptions {
   durationMs: number;

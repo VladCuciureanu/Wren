@@ -23,7 +23,8 @@ const STATE_MOODS: Record<PipelineState, Mood> = {
   unknown: { birdsong: 0.0, wind: 0.0, thunder: 0.0, rain: 0.0, hum: 0.0, chime: 0.0, static_: 0.5 },
 };
 
-const MOOD_KEYS: (keyof Mood)[] = ["birdsong", "wind", "thunder", "rain", "hum", "chime", "static_"];
+/** Every mood layer, in a fixed order. */
+export const MOOD_KEYS: readonly (keyof Mood)[] = ["birdsong", "wind", "thunder", "rain", "hum", "chime", "static_"];
 
 export function emptyMood(): Mood {
   return { birdsong: 0, wind: 0, thunder: 0, rain: 0, hum: 0, chime: 0, static_: 0 };
