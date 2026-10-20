@@ -53,12 +53,12 @@ export async function runInit(path?: string): Promise<void> {
 
 /**
  * Quote `arg` for pasting into a shell when it holds anything beyond plain
- * path characters: single quotes on POSIX shells, double quotes on Windows
- * (where a path cannot contain a double quote).
+ * path characters. Both POSIX shells and PowerShell (the default Windows
+ * shell) treat single quotes literally; only the escaping of `'` differs.
  */
 export function shellQuote(arg: string, platform: NodeJS.Platform = process.platform): string {
   if (platform === "win32") {
-    return /^[\w@%+=:,./\\-]+$/.test(arg) ? arg : `"${arg}"`;
+    return /^[A-Za-z0-9_\-.:\\/]+$/.test(arg) ? arg : `'${arg.replaceAll("'", "''")}'`;
   }
   return /^[\w@%+=:,./-]+$/.test(arg) ? arg : `'${arg.replaceAll("'", "'\\''")}'`;
 }
