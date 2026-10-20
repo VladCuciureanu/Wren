@@ -19,9 +19,7 @@ export function parseCli(args: string[]): CliArgs {
   try {
     parsed = parseOptions(args);
   } catch (e) {
-    // node:util appends advice to the first sentence; keep just the problem.
-    const message = e instanceof Error ? e.message.split(/\.\s|\n/)[0] : String(e);
-    throw new UsageError(message.charAt(0).toLowerCase() + message.slice(1));
+    throw new UsageError(describeParseError(e, args));
   }
   const { values, positionals } = parsed;
 
@@ -51,19 +49,49 @@ export function parseCli(args: string[]): CliArgs {
   };
 }
 
+const OPTIONS = {
+  config: { type: "string", short: "c" },
+  volume: { type: "string" },
+  mute: { type: "boolean", short: "m", default: false },
+  help: { type: "boolean", short: "h", default: false },
+  version: { type: "boolean", short: "v", default: false },
+} as const;
+
 function parseOptions(args: string[]) {
   return parseArgs({
     args,
-    options: {
-      config: { type: "string", short: "c" },
-      volume: { type: "string" },
-      mute: { type: "boolean", short: "m", default: false },
-      help: { type: "boolean", short: "h", default: false },
-      version: { type: "boolean", short: "v", default: false },
-    },
+    options: OPTIONS,
     strict: true,
     allowPositionals: true,
   });
+}
+
+/** Turn a node:util parseArgs error into a one-line usage message. */
+function describeParseError(e: unknown, args: string[]): string {
+  if (e instanceof Error && "code" in e && e.code === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE") {
+    // `--volume -5`: a string option whose value starts with a dash. A lax
+    // parse accepts it, and its tokens say which option and value were meant.
+    const { tokens } = parseArgs({ args, options: OPTIONS, strict: false, tokens: true });
+    for (const token of tokens) {
+      if (token.kind === "option" && !token.inlineValue && token.value?.startsWith("-")) {
+        // `--volume --config x`: the value was most likely left out.
+        if (token.value.startsWith("--")) {
+          return `option '${token.rawName}' needs a value`;
+        }
+        return (
+          `option '${token.rawName}' got '${token.value}', which looks like an option; ` +
+          `write --${token.name}=${token.value}`
+        );
+      }
+    }
+  }
+  // node:util appends advice to the first sentence; keep just the problem.
+  const message = (e instanceof Error ? e.message : String(e))
+    .split("\n")[0]
+    .split(/\.\s/)[0]
+    .trim()
+    .replace(/\.+$/, "");
+  return message.charAt(0).toLowerCase() + message.slice(1);
 }
 
 export interface InitialVolume {
