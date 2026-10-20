@@ -9,7 +9,7 @@ const LAYER_FILES: Record<keyof Mood, string> = {
   rain: "rain.ogg",
   hum: "hum.ogg",
   chime: "chime.ogg",
-  static_: "static.ogg",
+  static: "static.ogg",
 };
 
 export interface AudioEngine {
@@ -49,6 +49,13 @@ export interface RetryOptions {
 }
 
 export interface EngineOptions {
+  /** Directory holding the theme's layer files. */
+  assetsDir: string;
+  /** Master volume, 0-100. Defaults to 80. */
+  masterVolume?: number;
+  /** Defaults to logging the error to stderr. */
+  onError?: AudioErrorHandler;
+  spawn?: SpawnFn;
   timers?: Timers;
   retry?: Partial<RetryOptions>;
 }
@@ -90,17 +97,11 @@ export class FfplayEngine implements AudioEngine {
   #timers: Timers;
   #retry: RetryOptions;
 
-  constructor(
-    assetsDir: string,
-    masterVolume = 80,
-    spawnFn: SpawnFn = spawn,
-    onError: AudioErrorHandler = defaultErrorHandler,
-    options: EngineOptions = {},
-  ) {
-    this.#assetsDir = assetsDir;
-    this.#masterVolume = masterVolume;
-    this.#spawn = spawnFn;
-    this.#onError = onError;
+  constructor(options: EngineOptions) {
+    this.#assetsDir = options.assetsDir;
+    this.#masterVolume = options.masterVolume ?? 80;
+    this.#spawn = options.spawn ?? spawn;
+    this.#onError = options.onError ?? defaultErrorHandler;
     this.#timers = options.timers ?? realTimers;
     this.#retry = { ...DEFAULT_RETRY, ...options.retry };
   }

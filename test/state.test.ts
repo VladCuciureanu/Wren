@@ -44,7 +44,7 @@ test("calculateMood: single repo", () => {
 
 test("calculateMood: empty list returns unknown/fog", () => {
   const mood = calculateMood([]);
-  assert.deepEqual(mood.static_, 0.5);
+  assert.deepEqual(mood.static, 0.5);
   assert.deepEqual(mood.birdsong, 0.0);
 });
 

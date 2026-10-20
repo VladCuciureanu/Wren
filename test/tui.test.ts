@@ -10,7 +10,7 @@ const calm: Mood = {
   rain: 0.0,
   hum: 0.0,
   chime: 0.0,
-  static_: 0.0,
+  static: 0.0,
 };
 const fog: Mood = {
   birdsong: 0.0,
@@ -19,7 +19,7 @@ const fog: Mood = {
   rain: 0.0,
   hum: 0.0,
   chime: 0.0,
-  static_: 0.5,
+  static: 0.5,
 };
 
 test("renderTui: shows mood label", () => {

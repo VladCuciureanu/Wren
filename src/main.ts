@@ -10,8 +10,8 @@ import {
   missingTokenWarning,
   type ViewState,
 } from "./app.ts";
-import { Crossfader } from "./audio/crossfade.ts";
 import { checkFfplay, FfplayEngine } from "./audio/ffplay.ts";
+import { MoodPlayer } from "./audio/mood-player.ts";
 import { HELP_TEXT, parseCli, resolveVolume, UsageError, VERSION } from "./cli.ts";
 import { getConfigPath, loadConfig } from "./config.ts";
 import { buildProviders, IngestionLoop } from "./ingestion.ts";
@@ -92,20 +92,19 @@ async function main() {
 
   /** Redraw outside an update, once there is a mood to show. */
   const redrawCurrent = () => {
-    if (crossfader.currentMood) redraw(crossfader.currentMood);
+    if (player.currentMood) redraw(player.currentMood);
   };
 
   // The notice is read from the engine on each redraw; this only makes a new
   // failure show up right away instead of on the next update.
-  const engine: FfplayEngine = new FfplayEngine(
+  const engine: FfplayEngine = new FfplayEngine({
     assetsDir,
-    initial.engineVolume,
-    undefined,
-    redrawCurrent,
-  );
-  const crossfader = new Crossfader(engine);
+    masterVolume: initial.engineVolume,
+    onError: redrawCurrent,
+  });
+  const player = new MoodPlayer(engine);
 
-  const onUpdate = createUpdateHandler(view, crossfader, redraw);
+  const onUpdate = createUpdateHandler(view, player, redraw);
 
   const loop = new IngestionLoop(
     config.repos,
@@ -123,7 +122,7 @@ async function main() {
   // (e.g. an uncaught exception), so ffplay is never orphaned.
   const shutdown = onceOnExit(() => {
     loop.stop();
-    crossfader.stop();
+    player.stop();
     restoreTerminal();
   });
 

@@ -8,7 +8,7 @@ export interface Mood {
   rain: number;
   hum: number;
   chime: number;
-  static_: number;
+  static: number;
 }
 
 // Each layer volume 0.0–1.0 per pipeline state
@@ -20,7 +20,7 @@ const STATE_MOODS: Record<PipelineState, Mood> = {
     rain: 0.0,
     hum: 0.0,
     chime: 0.0,
-    static_: 0.0,
+    static: 0.0,
   },
   failing: {
     birdsong: 0.1,
@@ -29,9 +29,9 @@ const STATE_MOODS: Record<PipelineState, Mood> = {
     rain: 0.3,
     hum: 0.0,
     chime: 0.0,
-    static_: 0.0,
+    static: 0.0,
   },
-  error: { birdsong: 0.0, wind: 0.4, thunder: 0.8, rain: 0.7, hum: 0.0, chime: 0.0, static_: 0.0 },
+  error: { birdsong: 0.0, wind: 0.4, thunder: 0.8, rain: 0.7, hum: 0.0, chime: 0.0, static: 0.0 },
   deploying: {
     birdsong: 0.3,
     wind: 0.3,
@@ -39,7 +39,7 @@ const STATE_MOODS: Record<PipelineState, Mood> = {
     rain: 0.0,
     hum: 0.8,
     chime: 0.0,
-    static_: 0.0,
+    static: 0.0,
   },
   deploy_success: {
     birdsong: 0.8,
@@ -48,7 +48,7 @@ const STATE_MOODS: Record<PipelineState, Mood> = {
     rain: 0.0,
     hum: 0.0,
     chime: 1.0,
-    static_: 0.0,
+    static: 0.0,
   },
   deploy_failed: {
     birdsong: 0.0,
@@ -57,7 +57,7 @@ const STATE_MOODS: Record<PipelineState, Mood> = {
     rain: 0.6,
     hum: 0.0,
     chime: 0.0,
-    static_: 0.0,
+    static: 0.0,
   },
   pending: {
     birdsong: 0.2,
@@ -66,7 +66,7 @@ const STATE_MOODS: Record<PipelineState, Mood> = {
     rain: 0.0,
     hum: 0.3,
     chime: 0.0,
-    static_: 0.0,
+    static: 0.0,
   },
   unknown: {
     birdsong: 0.0,
@@ -75,7 +75,7 @@ const STATE_MOODS: Record<PipelineState, Mood> = {
     rain: 0.0,
     hum: 0.0,
     chime: 0.0,
-    static_: 0.5,
+    static: 0.5,
   },
 };
 
@@ -87,11 +87,11 @@ export const MOOD_KEYS: readonly (keyof Mood)[] = [
   "rain",
   "hum",
   "chime",
-  "static_",
+  "static",
 ];
 
 export function emptyMood(): Mood {
-  return { birdsong: 0, wind: 0, thunder: 0, rain: 0, hum: 0, chime: 0, static_: 0 };
+  return { birdsong: 0, wind: 0, thunder: 0, rain: 0, hum: 0, chime: 0, static: 0 };
 }
 
 export function calculateMood(statuses: RepoStatus[]): Mood {
@@ -125,7 +125,7 @@ export function moodLabel(mood: Mood): string {
     rain: "Rainy",
     hum: "Humming",
     chime: "Celebration",
-    static_: "Fog",
+    static: "Fog",
   };
   return labels[dominant];
 }

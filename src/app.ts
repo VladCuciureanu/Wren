@@ -49,14 +49,14 @@ export function currentNotice(view: ViewState, audio: AudioHealth): string | und
  */
 export function createUpdateHandler(
   view: ViewState,
-  crossfader: { transitionTo(mood: Mood): void },
+  player: { transitionTo(mood: Mood): void },
   redraw: (mood: Mood) => void,
 ): (statuses: RepoStatus[]) => void {
   return (statuses) => {
     view.updateError = undefined;
     view.statuses = statuses;
     const mood = calculateMood(statuses);
-    crossfader.transitionTo(mood);
+    player.transitionTo(mood);
     redraw(mood);
   };
 }

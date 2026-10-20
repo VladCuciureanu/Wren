@@ -2,15 +2,15 @@ import { MOOD_KEYS, type Mood } from "../state.ts";
 import type { AudioEngine } from "./ffplay.ts";
 
 /**
- * Moves the audio engine between moods.
+ * Plays moods on the audio engine: starts it on the first mood, skips a mood
+ * equal to the current one and forwards any other as a single update.
  *
- * ffplay can't change a layer's volume while it plays, so stepping through
- * intermediate volumes would restart every looping layer on each step (an
- * audible stutter). Instead each mood change is applied as a single update
- * at the target volumes. Updates are synchronous, so transitions can never
- * overlap and the most recent call always wins.
+ * ffplay can't change a layer's volume while it plays, so there is no fade:
+ * stepping through intermediate volumes would restart every looping layer on
+ * each step (an audible stutter). Updates are synchronous, so transitions can
+ * never overlap and the most recent call always wins.
  */
-export class Crossfader {
+export class MoodPlayer {
   #engine: AudioEngine;
   #currentMood: Mood | null = null;
 
