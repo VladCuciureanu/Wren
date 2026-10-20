@@ -35,9 +35,14 @@ export function parseCli(args: string[]): CliArgs {
     throw new UsageError("option '-c, --config <path>' needs a path");
   }
 
+  const volume = values.volume === undefined ? undefined : Number(values.volume);
+  if (volume !== undefined && (values.volume?.trim() === "" || !(volume >= 0 && volume <= 100))) {
+    throw new UsageError(`--volume must be a number from 0 to 100, got '${values.volume}'`);
+  }
+
   return {
     config: values.config,
-    volume: values.volume !== undefined ? Number(values.volume) : undefined,
+    volume,
     mute: values.mute,
     help: values.help,
     version: values.version,

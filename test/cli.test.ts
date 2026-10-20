@@ -79,3 +79,14 @@ test("parseCli: rejects --config without a path", () => {
   assert.throws(() => parseCli(["--config", "--mute"]), UsageError);
   assert.throws(() => parseCli(["--config="]), /needs a path/);
 });
+
+test("parseCli: rejects a --volume that is not a number from 0 to 100", () => {
+  for (const value of ["abc", "500", "-1", "", "NaN"]) {
+    assert.throws(() => parseCli([`--volume=${value}`]), UsageError, value);
+  }
+  assert.throws(() => parseCli(["--volume", "abc"]), {
+    message: "--volume must be a number from 0 to 100, got 'abc'",
+  });
+  assert.equal(parseCli(["--volume", "0"]).volume, 0);
+  assert.equal(parseCli(["--volume", "100"]).volume, 100);
+});

@@ -57,7 +57,7 @@ wren init
   -h, --help            Print help
 ```
 
-`wren init` always writes to the default path and exits 1 if a file is already there. Wren exits 1 if the config is invalid, lists no repos, or `ffplay` is missing. An unknown option or command, or an option missing its value, exits 2.
+`wren init` always writes to the default path and exits 1 if a file is already there. Wren exits 1 if the config is invalid, lists no repos, or `ffplay` is missing. An unknown option or command, an option missing its value, or a `--volume` outside 0-100 exits 2.
 
 While running: `q` or Ctrl+C quits, `m` toggles mute, `+` (or `=`) and `-` change the volume in steps of 5. Without a terminal on stdin, Wren plays until it receives SIGINT or SIGTERM.
 
