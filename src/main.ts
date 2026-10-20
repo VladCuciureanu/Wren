@@ -13,6 +13,7 @@ import { FfplayEngine, checkFfplay } from "./audio/ffplay.ts";
 import { Crossfader } from "./audio/crossfade.ts";
 import { drawTui } from "./tui.ts";
 import { runInit } from "./init.ts";
+import { keyAction } from "./keys.ts";
 
 async function main() {
   const args = parseCli(process.argv.slice(2));
@@ -104,25 +105,28 @@ async function main() {
   // Start polling
   loop.start();
 
-  // Keyboard input
+  // Keyboard input needs a terminal; without one (piped stdin) keep playing
+  // until SIGINT/SIGTERM.
+  if (!process.stdin.isTTY) return;
+
   process.stdin.setRawMode(true);
   input: for await (const chunk of process.stdin as AsyncIterable<Buffer>) {
     for (const byte of chunk) {
-      const ch = String.fromCharCode(byte);
+      const action = keyAction(byte);
 
-      if (ch === "q") {
+      if (action === "quit") {
         cleanup();
         break input;
-      } else if (ch === "m") {
+      } else if (action === "mute") {
         muted = !muted;
         engine.setMasterVolume(muted ? 0 : volume);
         if (crossfader.currentMood) redraw(crossfader.currentMood);
-      } else if (ch === "+" || ch === "=") {
+      } else if (action === "volume_up") {
         volume = Math.min(100, volume + 5);
         muted = false;
         engine.setMasterVolume(volume);
         if (crossfader.currentMood) redraw(crossfader.currentMood);
-      } else if (ch === "-") {
+      } else if (action === "volume_down") {
         volume = Math.max(0, volume - 5);
         engine.setMasterVolume(volume);
         if (crossfader.currentMood) redraw(crossfader.currentMood);
