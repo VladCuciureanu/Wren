@@ -72,10 +72,10 @@ async function main() {
     drawTui({ mood, statuses: currentStatuses, volume, muted });
   };
 
-  const onUpdate = async (statuses: RepoStatus[]) => {
+  const onUpdate = (statuses: RepoStatus[]) => {
     currentStatuses = statuses;
     const mood = calculateMood(statuses);
-    await crossfader.transitionTo(mood);
+    crossfader.transitionTo(mood);
     redraw(mood);
   };
 
@@ -83,7 +83,7 @@ async function main() {
     config.repos,
     providers,
     config.general.poll_interval * 1000,
-    (statuses) => { onUpdate(statuses); },
+    onUpdate,
   );
 
   // Graceful shutdown
