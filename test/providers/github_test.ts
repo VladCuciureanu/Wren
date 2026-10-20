@@ -290,3 +290,23 @@ test("GitHubProvider.poll: a plain 403 is still an error", async () => {
   const provider = new GitHubProvider("tok", { fetch, now: () => NOW });
   await assert.rejects(provider.poll("acme", "api"), /GitHub API error: 403/);
 });
+
+test("GitHubProvider.poll: a retry-after HTTP-date is honoured", async () => {
+  const clock = { now: NOW };
+  const { provider, requests } = rateLimitedAfterFirstPoll(
+    { status: 429, headers: { "retry-after": new Date(NOW + 300_000).toUTCString() } },
+    clock,
+  );
+  assert.equal(await provider.poll("acme", "api"), "failing");
+  assert.equal(await provider.poll("acme", "api"), "failing");
+
+  // Well past the 60s fallback but before the date: still skipped.
+  const before = requests.length;
+  clock.now += 200_000;
+  assert.equal(await provider.poll("acme", "api"), "failing");
+  assert.equal(requests.length, before);
+
+  clock.now += 101_000;
+  await provider.poll("acme", "api");
+  assert.equal(requests.length, before + 1);
+});

@@ -132,11 +132,11 @@ export class GitHubProvider implements Provider {
     if (!limited) return;
 
     const now = this.#now();
-    const retrySeconds = retryAfter === null ? NaN : Number(retryAfter);
+    const retryAt = parseRetryAfter(retryAfter, now);
     const resetSeconds = Number(resp.headers.get("x-ratelimit-reset") ?? NaN);
     let until = now + DEFAULT_RATE_LIMIT_BACKOFF_MS;
-    if (Number.isFinite(retrySeconds) && retrySeconds >= 0) {
-      until = now + retrySeconds * 1000;
+    if (retryAt !== null) {
+      until = retryAt;
     } else if (Number.isFinite(resetSeconds) && resetSeconds * 1000 > now) {
       until = resetSeconds * 1000;
     }
@@ -159,6 +159,18 @@ export class GitHubProvider implements Provider {
 
     return resp;
   }
+}
+
+/**
+ * Epoch milliseconds a `retry-after` header asks us to wait until: either
+ * delay-seconds or an HTTP-date. Null when absent or unparseable.
+ */
+function parseRetryAfter(value: string | null, now: number): number | null {
+  if (value === null || value.trim() === "") return null;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) return seconds >= 0 ? now + seconds * 1000 : null;
+  const date = Date.parse(value);
+  return Number.isFinite(date) ? Math.max(date, now) : null;
 }
 
 /** States that win over a green run elsewhere, most severe first. */
