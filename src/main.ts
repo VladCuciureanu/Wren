@@ -2,18 +2,18 @@
 
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { parseCli, resolveVolume, HELP_TEXT, VERSION } from "./cli.ts";
-import { loadConfig } from "./config.ts";
-import { createProvider } from "./providers/mod.ts";
-import { IngestionLoop, buildProviders } from "./ingestion.ts";
-import type { Mood } from "./state.ts";
-import { type ViewState, createUpdateHandler, currentNotice } from "./app.ts";
-import { FfplayEngine, checkFfplay } from "./audio/ffplay.ts";
+import { createUpdateHandler, currentNotice, type ViewState } from "./app.ts";
 import { Crossfader } from "./audio/crossfade.ts";
-import { drawTui } from "./tui.ts";
+import { checkFfplay, FfplayEngine } from "./audio/ffplay.ts";
+import { HELP_TEXT, parseCli, resolveVolume, VERSION } from "./cli.ts";
+import { loadConfig } from "./config.ts";
+import { buildProviders, IngestionLoop } from "./ingestion.ts";
 import { runInit } from "./init.ts";
 import { keyAction } from "./keys.ts";
+import { createProvider } from "./providers/mod.ts";
 import { onceOnExit } from "./shutdown.ts";
+import type { Mood } from "./state.ts";
+import { drawTui } from "./tui.ts";
 
 async function main() {
   const args = parseCli(process.argv.slice(2));
@@ -40,7 +40,7 @@ async function main() {
   }
 
   // Check ffplay
-  if (!await checkFfplay()) {
+  if (!(await checkFfplay())) {
     console.error("Error: ffplay not found on PATH.");
     console.error("");
     console.error("Install FFmpeg:");

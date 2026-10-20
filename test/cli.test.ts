@@ -45,9 +45,17 @@ test("resolveVolume: uses configured volume when --volume is absent", () => {
 });
 
 test("resolveVolume: --volume overrides configured volume", () => {
-  assert.deepEqual(resolveVolume(parseCli(["--volume", "65"]), 40), { volume: 65, muted: false, engineVolume: 65 });
+  assert.deepEqual(resolveVolume(parseCli(["--volume", "65"]), 40), {
+    volume: 65,
+    muted: false,
+    engineVolume: 65,
+  });
 });
 
 test("resolveVolume: --mute starts engine silent but keeps configured volume for unmute", () => {
-  assert.deepEqual(resolveVolume(parseCli(["--mute"]), 40), { volume: 40, muted: true, engineVolume: 0 });
+  assert.deepEqual(resolveVolume(parseCli(["--mute"]), 40), {
+    volume: 40,
+    muted: true,
+    engineVolume: 0,
+  });
 });

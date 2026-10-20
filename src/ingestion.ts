@@ -1,5 +1,5 @@
-import type { PipelineState, Provider } from "./providers/mod.ts";
 import type { RepoConfig } from "./config.ts";
+import type { PipelineState, Provider } from "./providers/mod.ts";
 
 export interface RepoStatus {
   owner: string;

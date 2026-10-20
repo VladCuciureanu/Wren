@@ -88,7 +88,7 @@ export class GitHubProvider implements Provider {
       throw new Error(`GitHub API error: ${resp.status} ${resp.statusText}`);
     }
 
-    const data = await resp.json() as WorkflowRunsResponse;
+    const data = (await resp.json()) as WorkflowRunsResponse;
     const state = mapRunsToState(data.workflow_runs);
     this.#lastStates.set(repoPath, state);
     return state;
@@ -103,7 +103,7 @@ export class GitHubProvider implements Provider {
     if (!resp.ok) {
       throw new Error(`GitHub API error: ${resp.status} ${resp.statusText}`);
     }
-    const repo = await resp.json() as RepoResponse;
+    const repo = (await resp.json()) as RepoResponse;
     this.#defaultBranches.set(repoPath, repo.default_branch);
     return repo.default_branch;
   }
@@ -126,7 +126,10 @@ export class GitHubProvider implements Provider {
       retryAfter !== null ||
       resp.headers.get("x-ratelimit-remaining") === "0";
     if (!limited) {
-      const body = await resp.clone().text().catch(() => "");
+      const body = await resp
+        .clone()
+        .text()
+        .catch(() => "");
       limited = /secondary rate limit/i.test(body);
     }
     if (!limited) return;
@@ -146,8 +149,8 @@ export class GitHubProvider implements Provider {
   async #get(path: string): Promise<Response> {
     const resp = await this.#fetch(`https://api.github.com${path}`, {
       headers: {
-        "Authorization": `Bearer ${this.#token}`,
-        "Accept": "application/vnd.github+json",
+        Authorization: `Bearer ${this.#token}`,
+        Accept: "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
       },
     });
@@ -174,7 +177,13 @@ function parseRetryAfter(value: string | null, now: number): number | null {
 }
 
 /** States that win over a green run elsewhere, most severe first. */
-const ATTENTION_STATES: PipelineState[] = ["deploy_failed", "failing", "error", "deploying", "pending"];
+const ATTENTION_STATES: PipelineState[] = [
+  "deploy_failed",
+  "failing",
+  "error",
+  "deploying",
+  "pending",
+];
 
 /**
  * Combine runs (newest first, as the API returns them) into one state: the

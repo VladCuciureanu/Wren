@@ -1,10 +1,26 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { renderTui } from "../src/tui.ts";
 import type { Mood } from "../src/state.ts";
+import { renderTui } from "../src/tui.ts";
 
-const calm: Mood = { birdsong: 1.0, wind: 0.2, thunder: 0.0, rain: 0.0, hum: 0.0, chime: 0.0, static_: 0.0 };
-const fog: Mood = { birdsong: 0.0, wind: 0.0, thunder: 0.0, rain: 0.0, hum: 0.0, chime: 0.0, static_: 0.5 };
+const calm: Mood = {
+  birdsong: 1.0,
+  wind: 0.2,
+  thunder: 0.0,
+  rain: 0.0,
+  hum: 0.0,
+  chime: 0.0,
+  static_: 0.0,
+};
+const fog: Mood = {
+  birdsong: 0.0,
+  wind: 0.0,
+  thunder: 0.0,
+  rain: 0.0,
+  hum: 0.0,
+  chime: 0.0,
+  static_: 0.5,
+};
 
 test("renderTui: shows mood label", () => {
   const output = renderTui({ mood: calm, statuses: [], volume: 80, muted: false });
@@ -51,6 +67,12 @@ test("renderTui: shows error info", () => {
 });
 
 test("renderTui: shows a notice when one is set", () => {
-  const output = renderTui({ mood: fog, statuses: [], volume: 80, muted: false, notice: "ffplay failed" });
+  const output = renderTui({
+    mood: fog,
+    statuses: [],
+    volume: 80,
+    muted: false,
+    notice: "ffplay failed",
+  });
   assert.match(output, /! ffplay failed/);
 });

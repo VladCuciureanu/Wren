@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { IngestionLoop, buildProviders, providerKey } from "../src/ingestion.ts";
-import type { PipelineState, Provider } from "../src/providers/mod.ts";
 import type { RepoConfig } from "../src/config.ts";
+import { buildProviders, IngestionLoop, providerKey } from "../src/ingestion.ts";
+import type { PipelineState, Provider } from "../src/providers/mod.ts";
 
 function fakeProvider(state: PipelineState): Provider {
   return {
@@ -85,7 +85,10 @@ test("buildProviders: repos with different tokens get different providers", asyn
 
   const loop = new IngestionLoop(repos, providers, 1000, () => {});
   const statuses = await loop.pollOnce();
-  assert.deepEqual(statuses.map((s) => s.state), ["passing", "failing", "passing"]);
+  assert.deepEqual(
+    statuses.map((s) => s.state),
+    ["passing", "failing", "passing"],
+  );
 });
 
 test("buildProviders: repos without a token share the default-token provider", () => {
@@ -102,7 +105,9 @@ test("buildProviders: repos without a token share the default-token provider", (
   assert.equal(providers.size, 1);
 });
 
-test("IngestionLoop: a throwing callback is reported and polling continues", { timeout: 2000 }, async () => {
+test("IngestionLoop: a throwing callback is reported and polling continues", {
+  timeout: 2000,
+}, async () => {
   const repos: RepoConfig[] = [{ owner: "a", name: "b", provider: "github" }];
   const providers = new Map([["github", fakeProvider("passing")]]);
 
