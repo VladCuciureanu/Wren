@@ -1,59 +1,38 @@
 import { MOOD_KEYS, type Mood } from "../state.ts";
 import type { AudioEngine } from "./ffplay.ts";
 
-export interface CrossfadeOptions {
-  durationMs: number;
-  steps: number;
-}
-
-const DEFAULTS: CrossfadeOptions = {
-  durationMs: 3000,
-  steps: 15,
-};
-
+/**
+ * Moves the audio engine between moods.
+ *
+ * ffplay can't change a layer's volume while it plays, so stepping through
+ * intermediate volumes would restart every looping layer on each step (an
+ * audible stutter). Instead each mood change is applied as a single update
+ * at the target volumes. Updates are synchronous, so transitions can never
+ * overlap and the most recent call always wins.
+ */
 export class Crossfader {
   #engine: AudioEngine;
-  #options: CrossfadeOptions;
   #currentMood: Mood | null = null;
-  #transitioning = false;
 
-  constructor(engine: AudioEngine, options?: Partial<CrossfadeOptions>) {
+  constructor(engine: AudioEngine) {
     this.#engine = engine;
-    this.#options = { ...DEFAULTS, ...options };
   }
 
   get currentMood(): Mood | null {
     return this.#currentMood;
   }
 
-  get transitioning(): boolean {
-    return this.#transitioning;
-  }
-
-  async transitionTo(target: Mood): Promise<void> {
+  transitionTo(target: Mood): void {
     if (!this.#currentMood) {
-      this.#currentMood = target;
+      this.#currentMood = { ...target };
       this.#engine.start(target);
       return;
     }
 
     if (moodsEqual(this.#currentMood, target)) return;
 
-    this.#transitioning = true;
-    const from = { ...this.#currentMood };
-    const stepDelay = this.#options.durationMs / this.#options.steps;
-
-    for (let i = 1; i <= this.#options.steps; i++) {
-      const t = i / this.#options.steps;
-      const intermediate = interpolateMood(from, target, t);
-      this.#engine.update(intermediate);
-      if (i < this.#options.steps) {
-        await sleep(stepDelay);
-      }
-    }
-
-    this.#currentMood = target;
-    this.#transitioning = false;
+    this.#currentMood = { ...target };
+    this.#engine.update(target);
   }
 
   stop(): void {
@@ -62,18 +41,6 @@ export class Crossfader {
   }
 }
 
-export function interpolateMood(a: Mood, b: Mood, t: number): Mood {
-  const result = {} as Mood;
-  for (const key of MOOD_KEYS) {
-    result[key] = Math.round((a[key] + (b[key] - a[key]) * t) * 100) / 100;
-  }
-  return result;
-}
-
 function moodsEqual(a: Mood, b: Mood): boolean {
   return MOOD_KEYS.every((k) => a[k] === b[k]);
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
 }
