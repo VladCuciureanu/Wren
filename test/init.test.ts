@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
 import { type TestContext, test } from "node:test";
-import { runInit } from "../src/init.ts";
+import { runInit, shellQuote } from "../src/init.ts";
 
 /** Point XDG_CONFIG_HOME at a fresh temp dir for the duration of the test. */
 async function tempXdg(t: TestContext): Promise<string> {
@@ -61,4 +61,36 @@ test("runInit: the starter config links to the real repository", async (t) => {
   const content = await readFile(join(tmpDir, "wren", "config.toml"), "utf8");
   assert.match(content, /^# See: https:\/\/github\.com\/VladCuciureanu\/Wren$/m);
   assert.doesNotMatch(content, /your-username/);
+});
+
+test("shellQuote: leaves plain paths alone", () => {
+  assert.equal(shellQuote("/home/me/wren.toml", "linux"), "/home/me/wren.toml");
+  assert.equal(
+    shellQuote(String.raw`C:\Users\me\wren.toml`, "win32"),
+    String.raw`C:\Users\me\wren.toml`,
+  );
+});
+
+test("shellQuote: quotes paths with spaces or shell characters", () => {
+  assert.equal(shellQuote("/home/me/my config.toml", "linux"), "'/home/me/my config.toml'");
+  assert.equal(shellQuote("/tmp/$HOME's.toml", "darwin"), String.raw`'/tmp/$HOME'\''s.toml'`);
+  assert.equal(
+    shellQuote(String.raw`C:\My Files\wren.toml`, "win32"),
+    String.raw`"C:\My Files\wren.toml"`,
+  );
+});
+
+test("runInit: the run hint quotes a --config path with spaces", async (t) => {
+  const tmpDir = await tempXdg(t);
+  const configPath = join(tmpDir, "my dir", "wren.toml");
+  const lines: string[] = [];
+  t.mock.method(console, "log", (line: string) => lines.push(line));
+
+  await runInit(configPath);
+
+  assert.equal(
+    lines[1],
+    `Edit it to add your repos, then run \`wren --config ${shellQuote(configPath)}\` to start.`,
+  );
+  assert.match(lines[1] ?? "", /--config ["'].*my dir.*["']`/);
 });
