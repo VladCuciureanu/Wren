@@ -1,5 +1,6 @@
-import { assertEquals } from "@std/assert";
-import { IngestionLoop } from "../src/ingestion.ts";
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { IngestionLoop, buildProviders, providerKey } from "../src/ingestion.ts";
 import type { PipelineState, Provider } from "../src/providers/mod.ts";
 import type { RepoConfig } from "../src/config.ts";
 
@@ -15,7 +16,7 @@ function failingProvider(msg: string): Provider {
   };
 }
 
-Deno.test("IngestionLoop.pollOnce: returns statuses for all repos", async () => {
+test("IngestionLoop.pollOnce: returns statuses for all repos", async () => {
   const repos: RepoConfig[] = [
     { owner: "a", name: "b", provider: "github" },
     { owner: "c", name: "d", provider: "github" },
@@ -23,12 +24,12 @@ Deno.test("IngestionLoop.pollOnce: returns statuses for all repos", async () => 
   const providers = new Map([["github", fakeProvider("passing")]]);
   const loop = new IngestionLoop(repos, providers, 1000, () => {});
   const statuses = await loop.pollOnce();
-  assertEquals(statuses.length, 2);
-  assertEquals(statuses[0].state, "passing");
-  assertEquals(statuses[1].state, "passing");
+  assert.deepEqual(statuses.length, 2);
+  assert.deepEqual(statuses[0].state, "passing");
+  assert.deepEqual(statuses[1].state, "passing");
 });
 
-Deno.test("IngestionLoop.pollOnce: isolates errors per repo", async () => {
+test("IngestionLoop.pollOnce: isolates errors per repo", async () => {
   const repos: RepoConfig[] = [
     { owner: "a", name: "ok", provider: "good" },
     { owner: "b", name: "bad", provider: "broken" },
@@ -39,37 +40,64 @@ Deno.test("IngestionLoop.pollOnce: isolates errors per repo", async () => {
   ]);
   const loop = new IngestionLoop(repos, providers, 1000, () => {});
   const statuses = await loop.pollOnce();
-  assertEquals(statuses[0].state, "passing");
-  assertEquals(statuses[0].error, undefined);
-  assertEquals(statuses[1].state, "unknown");
-  assertEquals(statuses[1].error, "network error");
+  assert.deepEqual(statuses[0].state, "passing");
+  assert.deepEqual(statuses[0].error, undefined);
+  assert.deepEqual(statuses[1].state, "unknown");
+  assert.deepEqual(statuses[1].error, "network error");
 });
 
-Deno.test("IngestionLoop.pollOnce: unknown provider returns unknown state", async () => {
-  const repos: RepoConfig[] = [{ owner: "a", name: "b", provider: "gitlab" }];
-  const providers = new Map<string, Provider>();
-  const loop = new IngestionLoop(repos, providers, 1000, () => {});
-  const statuses = await loop.pollOnce();
-  assertEquals(statuses[0].state, "unknown");
-  assertEquals(statuses[0].error, "No provider: gitlab");
-});
-
-Deno.test("IngestionLoop: start/stop calls callback", async () => {
+test("IngestionLoop: start polls repeatedly and stop halts polling", async () => {
   const repos: RepoConfig[] = [{ owner: "a", name: "b", provider: "github" }];
   const providers = new Map([["github", fakeProvider("failing")]]);
 
+  // Wait for the second callback rather than sleeping a fixed wall-clock time.
+  const { promise: secondCall, resolve } = Promise.withResolvers<void>();
   let callCount = 0;
-  const loop = new IngestionLoop(repos, providers, 50, (statuses) => {
+  const loop = new IngestionLoop(repos, providers, 1, (statuses) => {
     callCount++;
-    assertEquals(statuses[0].state, "failing");
+    assert.deepEqual(statuses[0].state, "failing");
+    if (callCount === 2) resolve();
   });
 
   loop.start();
-  await new Promise((r) => setTimeout(r, 180));
+  await secondCall;
   loop.stop();
 
-  // Should have been called at least 2 times in 180ms with 50ms interval
-  if (callCount < 2) {
-    throw new Error(`Expected at least 2 callbacks, got ${callCount}`);
-  }
+  const stoppedAt = callCount;
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(callCount, stoppedAt);
+});
+
+test("buildProviders: repos with different tokens get different providers", async () => {
+  const repos: RepoConfig[] = [
+    { owner: "a", name: "one", provider: "github", token: "token-a" },
+    { owner: "b", name: "two", provider: "github", token: "token-b" },
+    { owner: "c", name: "three", provider: "github", token: "token-a" },
+  ];
+  const created: string[] = [];
+  const providers = buildProviders(repos, "env-token", (_name, token) => {
+    created.push(token);
+    return { poll: () => Promise.resolve(token === "token-a" ? "passing" : "failing") };
+  });
+  assert.deepEqual(created, ["token-a", "token-b"]);
+  assert.notEqual(providers.get(providerKey(repos[0])), providers.get(providerKey(repos[1])));
+  assert.equal(providers.get(providerKey(repos[0])), providers.get(providerKey(repos[2])));
+
+  const loop = new IngestionLoop(repos, providers, 1000, () => {});
+  const statuses = await loop.pollOnce();
+  assert.deepEqual(statuses.map((s) => s.state), ["passing", "failing", "passing"]);
+});
+
+test("buildProviders: repos without a token share the default-token provider", () => {
+  const repos: RepoConfig[] = [
+    { owner: "a", name: "one", provider: "github" },
+    { owner: "b", name: "two", provider: "github" },
+  ];
+  const created: string[] = [];
+  const providers = buildProviders(repos, "env-token", (_name, token) => {
+    created.push(token);
+    return fakeProvider("passing");
+  });
+  assert.deepEqual(created, ["env-token"]);
+  assert.equal(providers.size, 1);
 });

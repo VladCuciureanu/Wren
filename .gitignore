@@ -2,4 +2,4 @@ notes
 .env
 .env.*
 .herodotus.toml
-deno.lock
+node_modules/

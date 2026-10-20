@@ -10,12 +10,37 @@ export interface RepoStatus {
 
 export type StatusCallback = (statuses: RepoStatus[]) => void;
 
+/**
+ * Key identifying which provider instance serves a repo. Repos without an
+ * explicit token share the provider-wide default instance (keyed by provider
+ * name); repos with their own token get an instance per distinct token.
+ */
+export function providerKey(repo: RepoConfig): string {
+  return repo.token === undefined ? repo.provider : `${repo.provider}#${repo.token}`;
+}
+
+/** Build one provider per distinct provider+credentials pair. */
+export function buildProviders(
+  repos: RepoConfig[],
+  defaultToken: string,
+  create: (name: string, token: string) => Provider,
+): Map<string, Provider> {
+  const providers = new Map<string, Provider>();
+  for (const repo of repos) {
+    const key = providerKey(repo);
+    if (!providers.has(key)) {
+      providers.set(key, create(repo.provider, repo.token ?? defaultToken));
+    }
+  }
+  return providers;
+}
+
 export class IngestionLoop {
   #repos: RepoConfig[];
   #providers: Map<string, Provider>;
   #intervalMs: number;
   #callback: StatusCallback;
-  #timer: number | undefined;
+  #timer: ReturnType<typeof setTimeout> | undefined;
   #running = false;
 
   constructor(
@@ -33,11 +58,10 @@ export class IngestionLoop {
   async pollOnce(): Promise<RepoStatus[]> {
     const results = await Promise.all(
       this.#repos.map(async (repo): Promise<RepoStatus> => {
-        const provider = this.#providers.get(repo.provider);
-        if (!provider) {
-          return { owner: repo.owner, name: repo.name, state: "unknown", error: `No provider: ${repo.provider}` };
-        }
         try {
+          // buildProviders creates an instance for every configured repo, and
+          // parseConfig rejects unknown providers.
+          const provider = this.#providers.get(providerKey(repo)) as Provider;
           const state = await provider.poll(repo.owner, repo.name);
           return { owner: repo.owner, name: repo.name, state };
         } catch (e) {
@@ -56,7 +80,7 @@ export class IngestionLoop {
       const statuses = await this.pollOnce();
       this.#callback(statuses);
       if (this.#running) {
-        this.#timer = setTimeout(tick, this.#intervalMs) as unknown as number;
+        this.#timer = setTimeout(tick, this.#intervalMs);
       }
     };
     tick();

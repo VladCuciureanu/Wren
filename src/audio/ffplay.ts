@@ -1,6 +1,6 @@
-import type { Mood } from "../state.ts";
-
-const MOOD_KEYS: (keyof Mood)[] = ["birdsong", "wind", "thunder", "rain", "hum", "chime", "static_"];
+import { type ChildProcess, type SpawnOptions, execFile, spawn } from "node:child_process";
+import { promisify } from "node:util";
+import { MOOD_KEYS, type Mood } from "../state.ts";
 
 const LAYER_FILES: Record<keyof Mood, string> = {
   birdsong: "birdsong.ogg",
@@ -19,25 +19,29 @@ export interface AudioEngine {
   stop(): void;
 }
 
-export async function checkFfplay(): Promise<boolean> {
+/** Subset of `child_process.spawn` the engine uses; injectable for tests. */
+export type SpawnFn = (command: string, args: readonly string[], options: SpawnOptions) => ChildProcess;
+
+export async function checkFfplay(command = "ffplay"): Promise<boolean> {
   try {
-    const cmd = new Deno.Command("ffplay", { args: ["-version"], stdout: "null", stderr: "null" });
-    const { success } = await cmd.output();
-    return success;
+    await promisify(execFile)(command, ["-version"]);
+    return true;
   } catch {
     return false;
   }
 }
 
 export class FfplayEngine implements AudioEngine {
-  #processes = new Map<keyof Mood, Deno.ChildProcess>();
+  #processes = new Map<keyof Mood, { proc: ChildProcess; volume: number }>();
   #assetsDir: string;
   #masterVolume: number;
   #currentMood: Mood | null = null;
+  #spawn: SpawnFn;
 
-  constructor(assetsDir: string, masterVolume = 80) {
+  constructor(assetsDir: string, masterVolume = 80, spawnFn: SpawnFn = spawn) {
     this.#assetsDir = assetsDir;
     this.#masterVolume = masterVolume;
+    this.#spawn = spawnFn;
   }
 
   start(mood: Mood): void {
@@ -54,14 +58,15 @@ export class FfplayEngine implements AudioEngine {
     this.#currentMood = mood;
     for (const key of MOOD_KEYS) {
       const vol = mood[key];
-      const existing = this.#processes.has(key);
+      const existing = this.#processes.get(key);
 
-      if (vol <= 0 && existing) {
+      if (vol <= 0) {
         this.#killLayer(key);
-      } else if (vol > 0 && !existing) {
+      } else if (!existing) {
         this.#spawnLayer(key, vol);
-      } else if (vol > 0 && existing) {
-        // ffplay doesn't support runtime volume changes — respawn
+      } else if (existing.volume !== this.#effectiveVolume(vol)) {
+        // ffplay can't change volume at runtime, so only layers whose volume
+        // changed are restarted; the rest keep looping undisturbed.
         this.#killLayer(key);
         this.#spawnLayer(key, vol);
       }
@@ -83,23 +88,25 @@ export class FfplayEngine implements AudioEngine {
 
   #spawnLayer(key: keyof Mood, layerVolume: number): void {
     const file = `${this.#assetsDir}/${LAYER_FILES[key]}`;
-    const effectiveVol = Math.round(layerVolume * this.#masterVolume);
+    const effectiveVol = this.#effectiveVolume(layerVolume);
 
-    const cmd = new Deno.Command("ffplay", {
-      args: ["-nodisp", "-loop", "0", "-volume", String(effectiveVol), "-loglevel", "quiet", file],
-      stdout: "null",
-      stderr: "null",
-    });
+    const proc = this.#spawn(
+      "ffplay",
+      ["-nodisp", "-loop", "0", "-volume", String(effectiveVol), "-loglevel", "quiet", file],
+      { stdio: ["inherit", "ignore", "ignore"] },
+    );
+    this.#processes.set(key, { proc, volume: effectiveVol });
+  }
 
-    const child = cmd.spawn();
-    this.#processes.set(key, child);
+  #effectiveVolume(layerVolume: number): number {
+    return Math.round(layerVolume * this.#masterVolume);
   }
 
   #killLayer(key: keyof Mood): void {
-    const proc = this.#processes.get(key);
-    if (proc) {
+    const layer = this.#processes.get(key);
+    if (layer) {
       try {
-        proc.kill("SIGTERM");
+        layer.proc.kill("SIGTERM");
       } catch {
         // already exited
       }

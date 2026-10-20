@@ -1,10 +1,11 @@
-#!/usr/bin/env -S deno run --allow-net --allow-read --allow-env --allow-run
+#!/usr/bin/env node
 
-import { parseCli, HELP_TEXT, VERSION } from "./cli.ts";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
+import { parseCli, resolveVolume, HELP_TEXT, VERSION } from "./cli.ts";
 import { loadConfig } from "./config.ts";
 import { createProvider } from "./providers/mod.ts";
-import type { Provider } from "./providers/mod.ts";
-import { IngestionLoop } from "./ingestion.ts";
+import { IngestionLoop, buildProviders } from "./ingestion.ts";
 import type { RepoStatus } from "./ingestion.ts";
 import { calculateMood } from "./state.ts";
 import type { Mood } from "./state.ts";
@@ -12,37 +13,22 @@ import { FfplayEngine, checkFfplay } from "./audio/ffplay.ts";
 import { Crossfader } from "./audio/crossfade.ts";
 import { drawTui } from "./tui.ts";
 import { runInit } from "./init.ts";
+import { keyAction } from "./keys.ts";
 
 async function main() {
-  const args = parseCli(Deno.args);
+  const args = parseCli(process.argv.slice(2));
 
   if (args.help) {
     console.log(HELP_TEXT);
-    Deno.exit(0);
+    process.exit(0);
   }
   if (args.version) {
     console.log(`wren ${VERSION}`);
-    Deno.exit(0);
+    process.exit(0);
   }
   if (args.init) {
     await runInit();
-    Deno.exit(0);
-  }
-
-  // Check ffplay
-  if (!await checkFfplay()) {
-    console.error("Error: ffplay not found on PATH.");
-    console.error("");
-    console.error("Install FFmpeg:");
-    if (Deno.build.os === "darwin") {
-      console.error("  brew install ffmpeg");
-    } else if (Deno.build.os === "linux") {
-      console.error("  sudo apt install ffmpeg   # Debian/Ubuntu");
-      console.error("  sudo dnf install ffmpeg   # Fedora");
-    } else {
-      console.error("  https://ffmpeg.org/download.html");
-    }
-    Deno.exit(1);
+    process.exit(0);
   }
 
   const config = await loadConfig(args.config);
@@ -50,37 +36,47 @@ async function main() {
   if (config.repos.length === 0) {
     console.error("No repos configured. Run `wren init` to create a config file,");
     console.error(`then edit ${args.config ?? "~/.config/wren/config.toml"} to add repos.`);
-    Deno.exit(1);
+    process.exit(1);
+  }
+
+  // Check ffplay
+  if (!await checkFfplay()) {
+    console.error("Error: ffplay not found on PATH.");
+    console.error("");
+    console.error("Install FFmpeg:");
+    if (process.platform === "darwin") {
+      console.error("  brew install ffmpeg");
+    } else if (process.platform === "linux") {
+      console.error("  sudo apt install ffmpeg   # Debian/Ubuntu");
+      console.error("  sudo dnf install ffmpeg   # Fedora");
+    } else {
+      console.error("  https://ffmpeg.org/download.html");
+    }
+    process.exit(1);
   }
 
   // Build providers (group by provider+token to share instances)
-  const providers = new Map<string, Provider>();
-  for (const repo of config.repos) {
-    const key = repo.provider;
-    if (!providers.has(key)) {
-      const token = repo.token ?? Deno.env.get("GITHUB_TOKEN") ?? "";
-      providers.set(key, createProvider(repo.provider, token));
-    }
-  }
+  const providers = buildProviders(config.repos, process.env.GITHUB_TOKEN ?? "", createProvider);
 
   // Resolve assets dir
-  const assetsDir = new URL(`../assets/${config.general.theme}`, import.meta.url).pathname;
+  const assetsDir = fileURLToPath(new URL(`../assets/${config.general.theme}`, import.meta.url));
 
-  const engine = new FfplayEngine(assetsDir, args.mute ? 0 : args.volume);
+  const initial = resolveVolume(args, config.general.volume);
+  const engine = new FfplayEngine(assetsDir, initial.engineVolume);
   const crossfader = new Crossfader(engine);
 
   let currentStatuses: RepoStatus[] = [];
-  let volume = args.mute ? 0 : args.volume;
-  let muted = args.mute;
+  let volume = initial.volume;
+  let muted = initial.muted;
 
   const redraw = (mood: Mood) => {
     drawTui({ mood, statuses: currentStatuses, volume, muted });
   };
 
-  const onUpdate = async (statuses: RepoStatus[]) => {
+  const onUpdate = (statuses: RepoStatus[]) => {
     currentStatuses = statuses;
     const mood = calculateMood(statuses);
-    await crossfader.transitionTo(mood);
+    crossfader.transitionTo(mood);
     redraw(mood);
   };
 
@@ -88,53 +84,82 @@ async function main() {
     config.repos,
     providers,
     config.general.poll_interval * 1000,
-    (statuses) => { onUpdate(statuses); },
+    onUpdate,
   );
 
   // Graceful shutdown
   const cleanup = () => {
     loop.stop();
     crossfader.stop();
-    // Restore terminal
-    Deno.stdout.writeSync(new TextEncoder().encode("\x1b[?25h\n"));
-    Deno.exit(0);
+    restoreTerminal();
+    process.exit(0);
   };
 
-  Deno.addSignalListener("SIGINT", cleanup);
-  Deno.addSignalListener("SIGTERM", cleanup);
+  process.on("SIGINT", cleanup);
+  process.on("SIGTERM", cleanup);
 
-  // Hide cursor
-  Deno.stdout.writeSync(new TextEncoder().encode("\x1b[?25l"));
+  try {
+    hideCursor();
 
-  // Start polling
-  loop.start();
+    // Start polling
+    loop.start();
 
-  // Keyboard input
-  Deno.stdin.setRaw(true);
-  const buf = new Uint8Array(1);
-  while (true) {
-    const n = await Deno.stdin.read(buf);
-    if (n === null) break;
-    const ch = String.fromCharCode(buf[0]);
+    // Keyboard input needs a terminal; without one (piped stdin) keep playing
+    // until SIGINT/SIGTERM.
+    if (!process.stdin.isTTY) return;
 
-    if (ch === "q") {
-      cleanup();
-      break;
-    } else if (ch === "m") {
-      muted = !muted;
-      engine.setMasterVolume(muted ? 0 : volume);
-      if (crossfader.currentMood) redraw(crossfader.currentMood);
-    } else if (ch === "+" || ch === "=") {
-      volume = Math.min(100, volume + 5);
-      muted = false;
-      engine.setMasterVolume(volume);
-      if (crossfader.currentMood) redraw(crossfader.currentMood);
-    } else if (ch === "-") {
-      volume = Math.max(0, volume - 5);
-      engine.setMasterVolume(volume);
-      if (crossfader.currentMood) redraw(crossfader.currentMood);
+    process.stdin.setRawMode(true);
+    input: for await (const chunk of process.stdin as AsyncIterable<Buffer>) {
+      for (const byte of chunk) {
+        const action = keyAction(byte);
+
+        if (action === "quit") {
+          cleanup();
+          break input;
+        } else if (action === "mute") {
+          muted = !muted;
+          engine.setMasterVolume(muted ? 0 : volume);
+          if (crossfader.currentMood) redraw(crossfader.currentMood);
+        } else if (action === "volume_up") {
+          volume = Math.min(100, volume + 5);
+          muted = false;
+          engine.setMasterVolume(volume);
+          if (crossfader.currentMood) redraw(crossfader.currentMood);
+        } else if (action === "volume_down") {
+          volume = Math.max(0, volume - 5);
+          engine.setMasterVolume(volume);
+          if (crossfader.currentMood) redraw(crossfader.currentMood);
+        }
+      }
     }
+  } catch (e) {
+    // Don't leave the poller or ffplay processes running behind an error.
+    loop.stop();
+    crossfader.stop();
+    throw e;
   }
 }
 
-main();
+let cursorHidden = false;
+
+function hideCursor(): void {
+  process.stdout.write("\x1b[?25l");
+  cursorHidden = true;
+}
+
+/** Undo raw mode and the hidden cursor, if they were applied. */
+function restoreTerminal(): void {
+  if (process.stdin.isTTY && process.stdin.isRaw) {
+    process.stdin.setRawMode(false);
+  }
+  if (cursorHidden) {
+    process.stdout.write("\x1b[?25h\n");
+    cursorHidden = false;
+  }
+}
+
+main().catch((e: unknown) => {
+  restoreTerminal();
+  console.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
+  process.exitCode = 1;
+});

@@ -1,3 +1,5 @@
+import { mkdir, stat, writeFile } from "node:fs/promises";
+import process from "node:process";
 import { getConfigDir, getConfigPath } from "./config.ts";
 
 const DEFAULT_CONFIG_TOML = `# Wren configuration
@@ -34,19 +36,19 @@ export async function runInit(): Promise<void> {
 
   // Check if config already exists
   try {
-    await Deno.stat(configPath);
+    await stat(configPath);
     console.error(`Config already exists at ${configPath}`);
     console.error("Delete it first if you want to regenerate.");
-    Deno.exit(1);
+    process.exit(1);
   } catch (e) {
-    if (!(e instanceof Deno.errors.NotFound)) throw e;
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
   }
 
   // Create directory
-  await Deno.mkdir(getConfigDir(), { recursive: true });
+  await mkdir(getConfigDir(), { recursive: true });
 
   // Write config
-  await Deno.writeTextFile(configPath, DEFAULT_CONFIG_TOML);
+  await writeFile(configPath, DEFAULT_CONFIG_TOML);
   console.log(`Config written to ${configPath}`);
   console.log("Edit it to add your repos, then run `wren` to start.");
 }
