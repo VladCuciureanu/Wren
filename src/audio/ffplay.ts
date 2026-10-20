@@ -120,11 +120,15 @@ export class FfplayEngine implements AudioEngine {
       if (vol <= 0) {
         this.#killLayer(key);
       } else if (!existing) {
-        this.#spawnLayer(key, vol);
+        // A failed layer waits for its scheduled retry, which picks up the
+        // latest volume, so updates can't bypass the backoff.
+        if (!this.#retryTimers.has(key)) this.#spawnLayer(key, vol);
       } else if (existing.volume !== this.#effectiveVolume(vol)) {
         // ffplay can't change volume at runtime, so only layers whose volume
-        // changed are restarted; the rest keep looping undisturbed.
-        this.#killLayer(key);
+        // changed are restarted; the rest keep looping undisturbed. A restart
+        // keeps the layer's health: a failing layer stays failing (and keeps
+        // its backoff) until the new process proves stable.
+        this.#stopProcess(key);
         this.#spawnLayer(key, vol);
       }
     }
@@ -241,7 +245,8 @@ export class FfplayEngine implements AudioEngine {
     return Math.round(layerVolume * this.#masterVolume);
   }
 
-  #killLayer(key: keyof Mood): void {
+  /** Kill a layer's process, if any, leaving its health and backoff alone. */
+  #stopProcess(key: keyof Mood): void {
     const layer = this.#processes.get(key);
     if (layer) {
       try {
@@ -251,10 +256,15 @@ export class FfplayEngine implements AudioEngine {
       }
       this.#processes.delete(key);
     }
+    this.#cancelTimer(this.#stableTimers, key);
+  }
+
+  /** Silence a layer for good: kill it and forget its failures and retries. */
+  #killLayer(key: keyof Mood): void {
+    this.#stopProcess(key);
     // A layer that is meant to be silent can't be failing, and needs no retry.
     this.#failures.delete(key);
     this.#attempts.delete(key);
     this.#cancelTimer(this.#retryTimers, key);
-    this.#cancelTimer(this.#stableTimers, key);
   }
 }
