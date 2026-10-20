@@ -1,9 +1,10 @@
 import process from "node:process";
 import type { RepoStatus } from "./ingestion.ts";
+import type { PipelineState } from "./providers/mod.ts";
 import type { Mood } from "./state.ts";
 import { moodLabel } from "./state.ts";
 
-const STATE_ICONS: Record<string, string> = {
+const STATE_ICONS: Record<PipelineState, string> = {
   passing: "ok",
   failing: "FAIL",
   error: "ERR",
@@ -40,7 +41,7 @@ export function renderTui(state: TuiState): string {
   } else {
     lines.push("  Pipelines:");
     for (const s of state.statuses) {
-      const icon = STATE_ICONS[s.state] ?? "???";
+      const icon = STATE_ICONS[s.state];
       const err = s.error ? ` (${s.error})` : "";
       lines.push(`    [${icon}] ${s.owner}/${s.name}${err}`);
     }
