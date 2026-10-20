@@ -101,3 +101,30 @@ test("buildProviders: repos without a token share the default-token provider", (
   assert.deepEqual(created, ["env-token"]);
   assert.equal(providers.size, 1);
 });
+
+test("IngestionLoop: a throwing callback is reported and polling continues", { timeout: 2000 }, async () => {
+  const repos: RepoConfig[] = [{ owner: "a", name: "b", provider: "github" }];
+  const providers = new Map([["github", fakeProvider("passing")]]);
+
+  const errors: Error[] = [];
+  const { promise: secondCall, resolve } = Promise.withResolvers<void>();
+  let callCount = 0;
+  const loop = new IngestionLoop(
+    repos,
+    providers,
+    1,
+    () => {
+      callCount++;
+      if (callCount === 1) throw new Error("drawTui exploded");
+      resolve();
+    },
+    (e) => errors.push(e),
+  );
+
+  loop.start();
+  await secondCall;
+  loop.stop();
+
+  assert.equal(errors.length, 1);
+  assert.equal(errors[0].message, "drawTui exploded");
+});

@@ -89,6 +89,10 @@ async function main() {
     providers,
     config.general.poll_interval * 1000,
     onUpdate,
+    (e) => {
+      // Keep polling: the next tick may well succeed.
+      notice = `Update failed: ${e.message}`;
+    },
   );
 
   // Graceful shutdown
