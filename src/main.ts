@@ -7,7 +7,7 @@ import { loadConfig } from "./config.ts";
 import { createProvider } from "./providers/mod.ts";
 import { IngestionLoop, buildProviders } from "./ingestion.ts";
 import type { Mood } from "./state.ts";
-import { type ViewState, createUpdateHandler } from "./app.ts";
+import { type ViewState, createUpdateHandler, currentNotice } from "./app.ts";
 import { FfplayEngine, checkFfplay } from "./audio/ffplay.ts";
 import { Crossfader } from "./audio/crossfade.ts";
 import { drawTui } from "./tui.ts";
@@ -65,11 +65,12 @@ async function main() {
   const view: ViewState = { statuses: [], volume: initial.volume, muted: initial.muted };
 
   const redraw = (mood: Mood) => {
-    drawTui({ mood, ...view });
+    drawTui({ mood, ...view, notice: currentNotice(view, engine) });
   };
 
-  const engine = new FfplayEngine(assetsDir, initial.engineVolume, undefined, (e) => {
-    view.notice = `Audio error: ${e.message}`;
+  // The notice is read from the engine on each redraw; this only makes a new
+  // failure show up right away instead of on the next update.
+  const engine: FfplayEngine = new FfplayEngine(assetsDir, initial.engineVolume, undefined, () => {
     if (crossfader.currentMood) redraw(crossfader.currentMood);
   });
   const crossfader = new Crossfader(engine);
@@ -83,7 +84,7 @@ async function main() {
     onUpdate,
     (e) => {
       // Keep polling: the next tick may well succeed.
-      view.notice = `Update failed: ${e.message}`;
+      view.updateError = `Update failed: ${e.message}`;
     },
   );
 

@@ -6,15 +6,31 @@ export interface ViewState {
   statuses: RepoStatus[];
   volume: number;
   muted: boolean;
-  /** A problem worth surfacing, e.g. "Audio error: …" or "Update failed: …". */
-  notice?: string;
+  /** Set when the last status update threw; cleared by the next one. */
+  updateError?: string;
+}
+
+/** Anything that knows whether audio is currently failing (the ffplay engine). */
+export interface AudioHealth {
+  readonly audioError: Error | undefined;
+}
+
+/**
+ * The problem to surface, worked out on every redraw rather than latched: an
+ * update failure first, otherwise a current audio failure. An audio notice
+ * therefore stays up for as long as ffplay keeps failing and goes away by
+ * itself once every layer plays again.
+ */
+export function currentNotice(view: ViewState, audio: AudioHealth): string | undefined {
+  if (view.updateError) return view.updateError;
+  const audioError = audio.audioError;
+  return audioError ? `Audio error: ${audioError.message}` : undefined;
 }
 
 /**
  * Build the ingestion callback: record the statuses, move the audio to the
- * matching mood and redraw. Each update starts by clearing the notice, so a
- * problem stays on screen only until an update succeeds; one raised during
- * this update (an audio error, or a throw reported by the loop) is kept.
+ * matching mood and redraw. A successful update clears the previous update
+ * failure; a throw is reported by the loop, which sets it again.
  */
 export function createUpdateHandler(
   view: ViewState,
@@ -22,7 +38,7 @@ export function createUpdateHandler(
   redraw: (mood: Mood) => void,
 ): (statuses: RepoStatus[]) => void {
   return (statuses) => {
-    view.notice = undefined;
+    view.updateError = undefined;
     view.statuses = statuses;
     const mood = calculateMood(statuses);
     crossfader.transitionTo(mood);
