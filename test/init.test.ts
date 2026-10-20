@@ -54,3 +54,11 @@ test("runInit: writes to an explicit path, creating its directory", async (t) =>
   assert.match(await readFile(configPath, "utf8"), /^\[general\]$/m);
   await assert.rejects(readFile(join(tmpDir, "wren", "config.toml")), { code: "ENOENT" });
 });
+
+test("runInit: the starter config links to the real repository", async (t) => {
+  const tmpDir = await tempXdg(t);
+  await runInit();
+  const content = await readFile(join(tmpDir, "wren", "config.toml"), "utf8");
+  assert.match(content, /^# See: https:\/\/github\.com\/VladCuciureanu\/Wren$/m);
+  assert.doesNotMatch(content, /your-username/);
+});

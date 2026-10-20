@@ -3,7 +3,7 @@ import { dirname } from "node:path";
 import { getConfigPath } from "./config.ts";
 
 const DEFAULT_CONFIG_TOML = `# Wren configuration
-# See: https://github.com/your-username/wren
+# See: https://github.com/VladCuciureanu/Wren
 
 [general]
 # Polling interval in seconds (minimum 10)
