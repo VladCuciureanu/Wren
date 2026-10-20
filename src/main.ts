@@ -84,11 +84,19 @@ async function main() {
     drawTui({ mood, ...view, notice: currentNotice(view, engine) });
   };
 
+  /** Redraw outside an update, once there is a mood to show. */
+  const redrawCurrent = () => {
+    if (crossfader.currentMood) redraw(crossfader.currentMood);
+  };
+
   // The notice is read from the engine on each redraw; this only makes a new
   // failure show up right away instead of on the next update.
-  const engine: FfplayEngine = new FfplayEngine(assetsDir, initial.engineVolume, undefined, () => {
-    if (crossfader.currentMood) redraw(crossfader.currentMood);
-  });
+  const engine: FfplayEngine = new FfplayEngine(
+    assetsDir,
+    initial.engineVolume,
+    undefined,
+    redrawCurrent,
+  );
   const crossfader = new Crossfader(engine);
 
   const onUpdate = createUpdateHandler(view, crossfader, redraw);
@@ -143,16 +151,16 @@ async function main() {
         } else if (action === "mute") {
           view.muted = !view.muted;
           engine.setMasterVolume(view.muted ? 0 : view.volume);
-          if (crossfader.currentMood) redraw(crossfader.currentMood);
+          redrawCurrent();
         } else if (action === "volume_up") {
           view.volume = Math.min(100, view.volume + 5);
           view.muted = false;
           engine.setMasterVolume(view.volume);
-          if (crossfader.currentMood) redraw(crossfader.currentMood);
+          redrawCurrent();
         } else if (action === "volume_down") {
           view.volume = Math.max(0, view.volume - 5);
           engine.setMasterVolume(view.volume);
-          if (crossfader.currentMood) redraw(crossfader.currentMood);
+          redrawCurrent();
         }
       }
     }
